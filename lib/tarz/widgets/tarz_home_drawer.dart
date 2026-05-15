@@ -1,0 +1,278 @@
+import 'package:flutter/material.dart';
+
+import '../../routes/app_routes.dart';
+import '../data/tarz_mock_catalog.dart';
+import '../theme/tarz_colors.dart';
+import '../theme/tarz_spacing.dart';
+
+/// Yan menyu — cins tabları, kateqoriya siyahısı, kabinet düymələri.
+class TarzHomeDrawer extends StatelessWidget {
+  const TarzHomeDrawer({
+    super.key,
+    required this.selectedGenderIndex,
+    required this.onGenderSelected,
+    this.onCategoryTap,
+  });
+
+  final int selectedGenderIndex;
+  final ValueChanged<int> onGenderSelected;
+  final ValueChanged<String>? onCategoryTap;
+
+  static const List<List<String>> _categoriesByGender = [
+    [
+      'Yeni',
+      'Cins',
+      "Hoodie'lər & Sweatshirt'lər",
+      'Şalvarlar',
+      'Köynəklər',
+      'Corablar',
+    ],
+    [
+      'Yeni',
+      'Cins',
+      'Köynəklər',
+      'Ayaqqabı',
+      'Aksesuar',
+      'İdman',
+    ],
+    [
+      'Yeni',
+      'Köynək',
+      'Şalvar',
+      'Don',
+      'Ayaqqabı',
+      'Oyuncaq',
+    ],
+  ];
+
+  List<String> get _items {
+    final i = selectedGenderIndex.clamp(0, _categoriesByGender.length - 1);
+    return _categoriesByGender[i];
+  }
+
+  void _close(BuildContext context) => Navigator.of(context).pop();
+
+  void _goLogin(BuildContext context) {
+    _close(context);
+    Navigator.of(context).pushNamed(AppRoutes.login);
+  }
+
+  void _goRegister(BuildContext context) {
+    _close(context);
+    Navigator.of(context).pushNamed(AppRoutes.register);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final labels = TarzMockCatalog.categories;
+
+    final screenW = MediaQuery.sizeOf(context).width;
+
+    return Drawer(
+      width: screenW,
+      backgroundColor: TarzColors.surface,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                TarzSpacing.md,
+                TarzSpacing.sm,
+                TarzSpacing.xs,
+                TarzSpacing.sm,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: List.generate(labels.length, (i) {
+                        final selected = i == selectedGenderIndex;
+                        return Expanded(
+                          child: InkWell(
+                            onTap: () {
+                              onGenderSelected(i);
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.only(
+                                top: TarzSpacing.xs,
+                                bottom: TarzSpacing.sm,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    labels[i],
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                                      color: selected ? TarzColors.ink : TarzColors.inkMuted,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 180),
+                                    height: selected ? 2.5 : 0,
+                                    decoration: BoxDecoration(
+                                      color: selected ? TarzColors.ink : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => _close(context),
+                    icon: const Icon(Icons.close_rounded),
+                    tooltip: 'Bağla',
+                    style: IconButton.styleFrom(foregroundColor: TarzColors.ink),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: TarzSpacing.md),
+                itemCount: _items.length,
+                separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF0F0F0)),
+                itemBuilder: (context, index) {
+                  final title = _items[index];
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                    title: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w400,
+                        color: TarzColors.ink,
+                      ),
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right_rounded,
+                      color: TarzColors.inkMuted.withValues(alpha: 0.45),
+                    ),
+                    onTap: () {
+                      onCategoryTap?.call(title);
+                      _close(context);
+                    },
+                  );
+                },
+              ),
+            ),
+            const Divider(height: 1, thickness: 1, color: Color(0xFFE8E8E6)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                TarzSpacing.md,
+                TarzSpacing.lg,
+                TarzSpacing.md,
+                TarzSpacing.lg,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Şəxsi kabinetə',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: TarzColors.ink,
+                    ),
+                  ),
+                  const SizedBox(height: TarzSpacing.lg),
+                  SizedBox(
+                    height: 50,
+                    child: FilledButton(
+                      onPressed: () => _goLogin(context),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: TarzColors.ink,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: const StadiumBorder(),
+                        textStyle: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      child: const Text('Daxil ol'),
+                    ),
+                  ),
+                  const SizedBox(height: TarzSpacing.sm),
+                  SizedBox(
+                    height: 50,
+                    child: OutlinedButton(
+                      onPressed: () => _goRegister(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: TarzColors.ink,
+                        side: const BorderSide(color: TarzColors.ink, width: 1.2),
+                        shape: const StadiumBorder(),
+                        textStyle: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      child: const Text('Qeydiyyatdan keç'),
+                    ),
+                  ),
+                  const SizedBox(height: TarzSpacing.xl),
+                  InkWell(
+                    onTap: () {
+                      // Dil seçimi — növbəti addım
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: TarzSpacing.sm),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.language_rounded,
+                            size: 26,
+                            color: TarzColors.ink.withValues(alpha: 0.75),
+                          ),
+                          const SizedBox(width: TarzSpacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Azərbaycan',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                    color: TarzColors.ink,
+                                  ),
+                                ),
+                                Text(
+                                  'Dil',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: TarzColors.inkMuted.withValues(alpha: 0.85),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: TarzColors.inkMuted.withValues(alpha: 0.45),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

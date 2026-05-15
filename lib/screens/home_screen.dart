@@ -1,28 +1,14 @@
 import 'package:flutter/material.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+import '../tarz/tarz_home_screen.dart';
 
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
+/// Layihə marşrutlarından açılan əsas ekran — Tarz mobil UI.
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
 
-class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Home'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              // Log out logic here
-            },
-          )
-        ],
-    
-      ),
-    );
+    return const TarzHomeScreen();
   }
 }
+
