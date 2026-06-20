@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/tarz_colors.dart';
 import '../theme/tarz_spacing.dart';
 import '../theme/tarz_text_styles.dart';
+import 'tarz_cart_icon_button.dart';
 
 class TarzHomeTopBar extends StatelessWidget {
   const TarzHomeTopBar({
@@ -91,16 +92,7 @@ class TarzHomeTopBar extends StatelessWidget {
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),
-                IconButton(
-                  onPressed: onCart,
-                  icon: const Icon(Icons.shopping_bag_outlined),
-                  tooltip: 'Səbət',
-                  visualDensity: VisualDensity.compact,
-                  style: IconButton.styleFrom(
-                    foregroundColor: TarzColors.ink,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
+                TarzCartIconButton(onPressed: onCart),
               ],
             ),
           ),

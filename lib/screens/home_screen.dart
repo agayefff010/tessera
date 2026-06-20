@@ -4,11 +4,13 @@ import '../tarz/tarz_home_screen.dart';
 
 /// Layihə marşrutlarından açılan əsas ekran — Tarz mobil UI.
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.initialNavIndex});
+
+  final int? initialNavIndex;
 
   @override
   Widget build(BuildContext context) {
-    return const TarzHomeScreen();
+    return TarzHomeScreen(initialNavIndex: initialNavIndex);
   }
 }
 

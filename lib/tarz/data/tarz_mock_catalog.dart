@@ -1,5 +1,9 @@
+import 'package:flutter/material.dart';
+
+import '../models/tarz_children_catalogue_block.dart';
 import '../models/tarz_product_preview.dart';
-import 'tarz_banner_assets.dart';
+import 'tarz_catalogue_assets.dart';
+import 'tarz_product_assets.dart';
 
 /// UI nümunəsi üçün statik məhsul siyahısı (API gələndə əvəz olunacaq).
 abstract final class TarzMockCatalog {
@@ -9,27 +13,90 @@ abstract final class TarzMockCatalog {
     'Uşaq',
   ];
 
+  /// Kataloq ekranı kateqoriya siyahısı.
+  /// TODO: API-dən gələndə repository ilə əvəz et.
+  static const List<String> catalogueCategories = [
+    'Geyim',
+    'Ayaqqabı',
+    'Çantalar',
+    'Aksessuarlar',
+    'Aktiv Geyimlər',
+    'Ziyafət geyimləri',
+    'Endirimlər',
+    'Brendlər',
+  ];
+
+  /// Uşaq kataloqu — 3 vizual blok.
+  /// TODO: API-dən şəkil və alt kateqoriya siyahısı ilə əvəz et.
+  static List<TarzChildrenCatalogueBlock> childrenCatalogueBlocks() => const [
+        TarzChildrenCatalogueBlock(
+          title: 'Körpələr (0-2 yaş)',
+          subcategories: [
+            'Endirim',
+            'Yeni',
+            'Köynəklər',
+            'Jaketlər',
+            'Şalvarlar',
+          ],
+          backgroundColor: Color(0xFFF5EDE0),
+          imageAsset: TarzCatalogueAssets.childrenKorpeler,
+          imageOnLeft: false,
+          fullWidthBanner: true,
+        ),
+        TarzChildrenCatalogueBlock(
+          title: 'Oğlanlar',
+          subcategories: [
+            'Ayaqqabılar',
+            'Yaz kolleksiyası',
+            'Köynəklər',
+            'Jaketlər',
+            'Corablar',
+          ],
+          backgroundColor: Color(0xFFDCE9F5),
+          imageAsset: TarzCatalogueAssets.childrenOglanlar,
+          imageOnLeft: true,
+          fullWidthBanner: true,
+        ),
+        TarzChildrenCatalogueBlock(
+          title: 'Qızlar',
+          subcategories: [
+            'Məktəbə hazırlıq',
+            'Kardiqanlar',
+            'Cemperlər',
+            'Çantalar',
+          ],
+          backgroundColor: Color(0xFFFCE4EC),
+          imageAsset: TarzCatalogueAssets.childrenQizlar,
+          imageOnLeft: false,
+          fullWidthBanner: true,
+        ),
+      ];
+
   static List<TarzProductPreview> trending() => const [
         TarzProductPreview(
           id: 't1',
           title: 'Yüksək bel denim',
           priceLabel: '89 AZN',
           badgeLabel: 'Yeni',
+          imageAsset: TarzProductAssets.nikeV5Rnr,
         ),
         TarzProductPreview(
           id: 't2',
           title: 'Minimal trikotaj sviter',
           priceLabel: '64 AZN',
+          imageAsset: TarzProductAssets.greenCardigan,
         ),
         TarzProductPreview(
           id: 't3',
           title: 'Dəri kəmər',
           priceLabel: '42 AZN',
+          imageAsset: TarzProductAssets.nikeV5Rnr,
         ),
         TarzProductPreview(
           id: 't4',
           title: 'Klassik ağ köynək',
           priceLabel: '55 AZN',
+          imageAsset: TarzProductAssets.greenCardigan,
         ),
       ];
 
@@ -39,31 +106,37 @@ abstract final class TarzMockCatalog {
           title: 'Oversize palto',
           priceLabel: '210 AZN',
           badgeLabel: '-20%',
+          imageAsset: TarzProductAssets.nikeV5Rnr,
         ),
         TarzProductPreview(
           id: 'f2',
           title: 'Parlaq paltar',
           priceLabel: '175 AZN',
+          imageAsset: TarzProductAssets.greenCardigan,
         ),
         TarzProductPreview(
           id: 'f3',
           title: 'İdman ayaqqabısı',
           priceLabel: '129 AZN',
+          imageAsset: TarzProductAssets.nikeV5Rnr,
         ),
         TarzProductPreview(
           id: 'f4',
           title: 'Çanta — krossbod',
           priceLabel: '98 AZN',
+          imageAsset: TarzProductAssets.greenCardigan,
         ),
         TarzProductPreview(
           id: 'f5',
           title: 'Eynək — günəş',
           priceLabel: '72 AZN',
+          imageAsset: TarzProductAssets.nikeV5Rnr,
         ),
         TarzProductPreview(
           id: 'f6',
           title: 'Şal — kaşmir',
           priceLabel: '48 AZN',
+          imageAsset: TarzProductAssets.greenCardigan,
         ),
       ];
 
@@ -76,7 +149,7 @@ abstract final class TarzMockCatalog {
           priceLabel: '90₼',
           originalPriceLabel: '120₼',
           badgeLabel: '-25%',
-          imageAsset: TarzBannerAssets.winter,
+          imageAsset: TarzProductAssets.nikeV5Rnr,
         ),
         TarzProductPreview(
           id: 'he2',
@@ -85,7 +158,7 @@ abstract final class TarzMockCatalog {
           priceLabel: '145₼',
           originalPriceLabel: '189₼',
           badgeLabel: '-23%',
-          imageAsset: TarzBannerAssets.mehman,
+          imageAsset: TarzProductAssets.greenCardigan,
         ),
         TarzProductPreview(
           id: 'he3',
@@ -94,7 +167,7 @@ abstract final class TarzMockCatalog {
           priceLabel: '76₼',
           originalPriceLabel: '110₼',
           badgeLabel: '-31%',
-          imageAsset: TarzBannerAssets.yakup,
+          imageAsset: TarzProductAssets.nikeV5Rnr,
         ),
         TarzProductPreview(
           id: 'he4',
@@ -103,7 +176,7 @@ abstract final class TarzMockCatalog {
           priceLabel: '99₼',
           originalPriceLabel: '130₼',
           badgeLabel: '-24%',
-          imageAsset: TarzBannerAssets.tomy,
+          imageAsset: TarzProductAssets.greenCardigan,
         ),
         TarzProductPreview(
           id: 'he5',
@@ -112,7 +185,27 @@ abstract final class TarzMockCatalog {
           priceLabel: '65₼',
           originalPriceLabel: '85₼',
           badgeLabel: '-24%',
-          imageAsset: TarzBannerAssets.aiTileSquare2,
+          imageAsset: TarzProductAssets.nikeV5Rnr,
+        ),
+      ];
+
+  /// Ana səhifə «Yenilər» 2 sütunlu şəbəkə (skrinşot).
+  static List<TarzProductPreview> homeNewProductsGrid() => const [
+        TarzProductPreview(
+          id: 'yn1',
+          brand: 'NIKE',
+          title: 'Nike V5 RNR',
+          subtitle: 'İdman ayaqqabısı',
+          priceLabel: '150₼',
+          imageAsset: TarzProductAssets.nikeV5Rnr,
+        ),
+        TarzProductPreview(
+          id: 'yn2',
+          brand: 'ZARA',
+          title: 'Zolaşıq zolaqlı kardiqan',
+          subtitle: 'Kardiqan',
+          priceLabel: '98₼',
+          imageAsset: TarzProductAssets.greenCardigan,
         ),
       ];
 
@@ -124,7 +217,7 @@ abstract final class TarzMockCatalog {
           subtitle: 'Sviter',
           priceLabel: '64₼',
           badgeLabel: 'Yeni',
-          imageAsset: TarzBannerAssets.mehman,
+          imageAsset: TarzProductAssets.nikeV5Rnr,
         ),
         TarzProductPreview(
           id: 'hy2',
@@ -132,7 +225,7 @@ abstract final class TarzMockCatalog {
           subtitle: 'Cins şalvar',
           priceLabel: '89₼',
           badgeLabel: 'Yeni',
-          imageAsset: TarzBannerAssets.winter,
+          imageAsset: TarzProductAssets.greenCardigan,
         ),
         TarzProductPreview(
           id: 'hy3',
@@ -140,7 +233,7 @@ abstract final class TarzMockCatalog {
           subtitle: 'Qış',
           priceLabel: '210₼',
           badgeLabel: 'Yeni',
-          imageAsset: TarzBannerAssets.yakup,
+          imageAsset: TarzProductAssets.nikeV5Rnr,
         ),
         TarzProductPreview(
           id: 'hy4',
@@ -148,7 +241,7 @@ abstract final class TarzMockCatalog {
           subtitle: 'Aksesuar',
           priceLabel: '98₼',
           badgeLabel: 'Yeni',
-          imageAsset: TarzBannerAssets.tomy,
+          imageAsset: TarzProductAssets.greenCardigan,
         ),
       ];
 
@@ -161,7 +254,7 @@ abstract final class TarzMockCatalog {
           priceLabel: '175₼',
           originalPriceLabel: '220₼',
           badgeLabel: '-20%',
-          imageAsset: TarzBannerAssets.aiTileSquare2,
+          imageAsset: TarzProductAssets.nikeV5Rnr,
         ),
         TarzProductPreview(
           id: 'ht2',
@@ -170,7 +263,7 @@ abstract final class TarzMockCatalog {
           priceLabel: '48₼',
           originalPriceLabel: '60₼',
           badgeLabel: '-20%',
-          imageAsset: TarzBannerAssets.winter,
+          imageAsset: TarzProductAssets.greenCardigan,
         ),
         TarzProductPreview(
           id: 'ht3',
@@ -178,14 +271,46 @@ abstract final class TarzMockCatalog {
           subtitle: 'Aksesuar',
           priceLabel: '72₼',
           badgeLabel: 'Top',
-          imageAsset: TarzBannerAssets.mehman,
+          imageAsset: TarzProductAssets.nikeV5Rnr,
         ),
         TarzProductPreview(
           id: 'ht4',
           title: 'Dəri kəmər',
           subtitle: 'Kişi',
           priceLabel: '42₼',
-          imageAsset: TarzBannerAssets.tomy,
+          imageAsset: TarzProductAssets.greenCardigan,
         ),
       ];
+
+  /// «Endirim» listing səhifəsi üçün 8 kart (şəbəkə nümunəsi).
+  static List<TarzProductPreview> endirimListingDemo() {
+    return List.generate(
+      8,
+      (i) => TarzProductPreview(
+        id: 'endirim_demo_$i',
+        title: 'Nike V5 RNR',
+        subtitle: 'İdman ayaqqabısı',
+        priceLabel: '90₼',
+        originalPriceLabel: '120₼',
+        badgeLabel: '-25%',
+        imageAsset: TarzProductAssets.demoAt(i),
+      ),
+    );
+  }
+
+  /// «Trend» listing səhifəsi üçün 8 eyni nümunə kart (dizayn maketi).
+  static List<TarzProductPreview> trendListingDemo() {
+    return List.generate(
+      8,
+      (i) => TarzProductPreview(
+        id: 'trend_demo_$i',
+        title: 'Nike V5 RNR',
+        subtitle: 'İdman ayaqqabısı',
+        priceLabel: '90₼',
+        originalPriceLabel: '120₼',
+        badgeLabel: '-25%',
+        imageAsset: TarzProductAssets.demoAt(i),
+      ),
+    );
+  }
 }

@@ -30,7 +30,24 @@ class TarzListingProductTile extends StatelessWidget {
           children: [
             AspectRatio(
               aspectRatio: 3 / 4,
-              child: _TileImage(product: product),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          const Color(0xFFF0EFEC),
+                          const Color(0xFFE5E4E0),
+                        ],
+                      ),
+                    ),
+                  ),
+                  _TileImage(product: product),
+                ],
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(

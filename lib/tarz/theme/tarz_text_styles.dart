@@ -58,4 +58,14 @@ abstract final class TarzTextStyles {
     color: Colors.white,
     height: 1.25,
   );
+
+  /// Kataloq kateqoriya sətri — Inter Regular 32px, mərkəz.
+  static const TextStyle catalogueCategory = TextStyle(
+    fontFamily: 'Inter',
+    fontSize: 32,
+    fontWeight: FontWeight.w400,
+    height: 1.0,
+    letterSpacing: 0,
+    color: TarzColors.ink,
+  );
 }

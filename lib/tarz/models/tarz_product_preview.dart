@@ -6,14 +6,18 @@ class TarzProductPreview {
     required this.id,
     required this.title,
     required this.priceLabel,
+    this.brand,
     this.imageUrl,
     this.badgeLabel,
     this.subtitle,
     this.originalPriceLabel,
     this.imageAsset,
+    this.rating,
+    this.reviewCount,
   });
 
   final String id;
+  final String? brand;
   final String title;
   final String priceLabel;
   final String? imageUrl;
@@ -24,4 +28,8 @@ class TarzProductPreview {
   final String? originalPriceLabel;
   /// Lokal şəkil yolu — şəbəkə URL-i yoxdursa istifadə olunur.
   final String? imageAsset;
+  /// API-dən gələn reytinq (məs. 4.3).
+  final double? rating;
+  /// API-dən gələn rəy sayı.
+  final int? reviewCount;
 }

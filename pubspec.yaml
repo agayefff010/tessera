@@ -45,6 +45,14 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/icon/tesicon.png
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: assets/icon/tesicon.png
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -64,6 +72,16 @@ flutter:
     - assets/banners/yakup.png
     - assets/banners/Tomy.png
     - assets/banners/ai_tile_square_2.png
+    - assets/banners/slider_banner.png
+    - assets/banners/brands_yerli.png
+    - assets/icon/tesicon.png
+    - assets/nav/home_icon.png
+    - assets/nav/catalog_icon.png
+    - assets/nav/hanger_icon.png
+    - assets/stores/
+    - assets/catalogue/
+    - assets/products/nike_v5_rnr.png
+    - assets/products/green_cardigan.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
