@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../models/plp_category_option.dart';
 import '../../models/tarz_children_catalogue_block.dart';
 import 'children_catalogue_block.dart';
 
-/// Uşaq kataloqu — 3 vizual blokun şaquli siyahısı.
+/// Uşaq kataloqu — API bloklarının şaquli siyahısı.
 class ChildrenCatalogueSection extends StatelessWidget {
   const ChildrenCatalogueSection({
     super.key,
@@ -13,8 +14,8 @@ class ChildrenCatalogueSection extends StatelessWidget {
   });
 
   final List<TarzChildrenCatalogueBlock> blocks;
-  final ValueChanged<String> onBlockTap;
-  final ValueChanged<String>? onSubcategoryTap;
+  final ValueChanged<PlpCategoryOption> onBlockTap;
+  final ValueChanged<PlpCategoryOption>? onSubcategoryTap;
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +26,14 @@ class ChildrenCatalogueSection extends StatelessWidget {
           if (i > 0) const SizedBox(height: 2),
           ChildrenCatalogueBlock(
             data: blocks[i],
-            onBlockTap: () => onBlockTap(blocks[i].title),
+            onBlockTap: () {
+              final id = blocks[i].categoryId;
+              if (id != null && id.isNotEmpty) {
+                onBlockTap(
+                  PlpCategoryOption(id: id, name: blocks[i].title),
+                );
+              }
+            },
             onSubcategoryTap: onSubcategoryTap,
           ),
         ],

@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/tarz_colors.dart';
+import '../catalogue/gender_selector.dart';
 
-/// Qadın / Kişi / Uşaq — seçili tab #FF315F.
+/// Qadın / Kişi / Uşaq — cinsə görə rəngli seqment (qırmızı / mavi / sarı).
 class GenderSegmentedTabs extends StatelessWidget {
   const GenderSegmentedTabs({
     super.key,
     required this.labels,
-    required this.selectedIndex,
+    this.selectedIndex,
     required this.onSelected,
   });
 
   final List<String> labels;
-  final int selectedIndex;
+  /// `null` — heç bir tab seçilməyib.
+  final int? selectedIndex;
   final ValueChanged<int> onSelected;
 
   static const Color _track = Color(0xFFF2F2EF);
-  static const Color _selected = Color(0xFFFF315F);
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +34,8 @@ class GenderSegmentedTabs extends StatelessWidget {
             padding: const EdgeInsets.all(4),
             child: Row(
               children: List.generate(labels.length, (i) {
-                final sel = i == selectedIndex;
+                final sel = selectedIndex != null && i == selectedIndex;
+                final color = GenderSelector.colorForIndex(i);
                 return Expanded(
                   child: GestureDetector(
                     onTap: () => onSelected(i),
@@ -42,13 +44,8 @@ class GenderSegmentedTabs extends StatelessWidget {
                       curve: Curves.easeOutCubic,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: sel ? _selected : Colors.transparent,
+                        color: sel ? color : Colors.transparent,
                         borderRadius: BorderRadius.circular(999),
-                        gradient: sel
-                            ? const LinearGradient(
-                                colors: [Color(0xFFFF315F), Color(0xFFE91E63)],
-                              )
-                            : null,
                       ),
                       child: Text(
                         labels[i],

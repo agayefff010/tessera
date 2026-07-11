@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../data/category_repository.dart';
+import '../models/plp_category_option.dart';
+import '../models/tarz_children_catalogue_block.dart';
 import '../data/tarz_mock_catalog.dart';
 import '../theme/tarz_breakpoints.dart';
 import '../widgets/catalogue/catalogue_search_bar.dart';
@@ -22,7 +25,7 @@ class TarzCatalogueScreen extends StatefulWidget {
 
   final VoidCallback onSearchTap;
   final VoidCallback onCartTap;
-  final ValueChanged<String> onCategoryTap;
+  final ValueChanged<PlpCategoryOption> onCategoryTap;
   final int genderIndex;
   final ValueChanged<int> onGenderChanged;
   final int selectedCategoryIndex;
@@ -40,20 +43,25 @@ class _TarzCatalogueScreenState extends State<TarzCatalogueScreen> {
   static const double _underlineGap = 6;
 
   final GlobalKey _listKey = GlobalKey();
-  late final List<GlobalKey> _textKeys;
+  final CategoryRepository _categoryRepo = CategoryRepository();
+  late List<GlobalKey> _textKeys;
+
+  List<PlpCategoryOption> _categories = const [];
+  List<TarzChildrenCatalogueBlock> _kidsBlocks = const [];
+  bool _categoriesLoading = true;
+  bool _kidsLoading = false;
 
   double _underlineLeft = 0;
   double _underlineTop = 0;
   double _underlineWidth = 0;
   bool _underlineReady = false;
 
-  List<String> get _categories => TarzMockCatalog.catalogueCategories;
-
-  bool get _isKidsMode => widget.genderIndex == TarzCatalogueScreen.kidsGenderIndex;
+  bool get _isKidsMode =>
+      widget.genderIndex == TarzCatalogueScreen.kidsGenderIndex;
 
   int get _safeCategoryIndex => widget.selectedCategoryIndex.clamp(
         0,
-        _categories.length - 1,
+        _categories.isEmpty ? 0 : _categories.length - 1,
       );
 
   Color get _accentColor => GenderSelector.colorForIndex(widget.genderIndex);
@@ -61,9 +69,55 @@ class _TarzCatalogueScreenState extends State<TarzCatalogueScreen> {
   @override
   void initState() {
     super.initState();
-    _textKeys = List.generate(_categories.length, (_) => GlobalKey());
-    if (!_isKidsMode) {
+    _textKeys = [];
+    _loadCategories();
+  }
+
+  @override
+  void dispose() {
+    _categoryRepo.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadCategories() async {
+    setState(() => _categoriesLoading = true);
+    try {
+      if (_isKidsMode) {
+        setState(() {
+          _categoriesLoading = false;
+          _categories = const [];
+        });
+        await _loadKidsBlocks();
+        return;
+      }
+
+      final cats =
+          await _categoryRepo.fetchCatalogueCategories(widget.genderIndex);
+      if (!mounted) return;
+      setState(() {
+        _categories = cats;
+        _categoriesLoading = false;
+        _textKeys = List.generate(cats.length, (_) => GlobalKey());
+      });
       WidgetsBinding.instance.addPostFrameCallback((_) => _measureUnderline());
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _categoriesLoading = false);
+    }
+  }
+
+  Future<void> _loadKidsBlocks() async {
+    setState(() => _kidsLoading = true);
+    try {
+      final blocks = await _categoryRepo.fetchKidsCatalogueBlocks();
+      if (!mounted) return;
+      setState(() {
+        _kidsBlocks = blocks;
+        _kidsLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _kidsLoading = false);
     }
   }
 
@@ -71,10 +125,9 @@ class _TarzCatalogueScreenState extends State<TarzCatalogueScreen> {
   void didUpdateWidget(TarzCatalogueScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.genderIndex != widget.genderIndex) {
+      _loadCategories();
       if (_isKidsMode) {
         setState(() => _underlineReady = false);
-      } else {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _measureUnderline());
       }
     } else if (!_isKidsMode &&
         oldWidget.selectedCategoryIndex != widget.selectedCategoryIndex) {
@@ -93,12 +146,14 @@ class _TarzCatalogueScreenState extends State<TarzCatalogueScreen> {
     widget.onCategoryIndexChanged?.call(index);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _measureUnderline();
-      widget.onCategoryTap(_categories[index]);
+      if (index < _categories.length) {
+        widget.onCategoryTap(_categories[index]);
+      }
     });
   }
 
   void _measureUnderline() {
-    if (_isKidsMode) return;
+    if (_isKidsMode || _categories.isEmpty) return;
 
     final listContext = _listKey.currentContext;
     final textContext = _textKeys[_safeCategoryIndex].currentContext;
@@ -106,7 +161,10 @@ class _TarzCatalogueScreenState extends State<TarzCatalogueScreen> {
 
     final listBox = listContext.findRenderObject() as RenderBox?;
     final textBox = textContext.findRenderObject() as RenderBox?;
-    if (listBox == null || textBox == null || !listBox.hasSize || !textBox.hasSize) {
+    if (listBox == null ||
+        textBox == null ||
+        !listBox.hasSize ||
+        !textBox.hasSize) {
       return;
     }
 
@@ -120,6 +178,14 @@ class _TarzCatalogueScreenState extends State<TarzCatalogueScreen> {
   }
 
   Widget _buildCategoryList() {
+    if (_categoriesLoading) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+    }
+
+    if (_categories.isEmpty) {
+      return const Center(child: Text('Kateqoriya tapılmadı'));
+    }
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
@@ -132,9 +198,9 @@ class _TarzCatalogueScreenState extends State<TarzCatalogueScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: List.generate(_categories.length, (index) {
-              final label = _categories[index];
+              final option = _categories[index];
               return CategoryListItem(
-                label: label,
+                label: option.name,
                 isSelected: index == _safeCategoryIndex,
                 textKey: _textKeys[index],
                 onTap: () => _onCategorySelected(index),
@@ -166,13 +232,20 @@ class _TarzCatalogueScreenState extends State<TarzCatalogueScreen> {
   }
 
   Widget _buildKidsCatalogue() {
+    if (_kidsLoading) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+    }
+    if (_kidsBlocks.isEmpty) {
+      return const Center(child: Text('Kateqoriya tapılmadı'));
+    }
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
       ),
       padding: const EdgeInsets.only(bottom: 24),
       child: ChildrenCatalogueSection(
-        blocks: TarzMockCatalog.childrenCatalogueBlocks(),
+        blocks: _kidsBlocks,
         onBlockTap: widget.onCategoryTap,
         onSubcategoryTap: widget.onCategoryTap,
       ),

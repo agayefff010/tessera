@@ -14,6 +14,9 @@ class TarzProductPreview {
     this.imageAsset,
     this.rating,
     this.reviewCount,
+    this.categoryId,
+    this.subcategoryId,
+    this.genderId,
   });
 
   final String id;
@@ -32,4 +35,10 @@ class TarzProductPreview {
   final double? rating;
   /// API-dən gələn rəy sayı.
   final int? reviewCount;
+  /// Backend `category` ID-si.
+  final String? categoryId;
+  /// Backend `subcategory` ID-si.
+  final String? subcategoryId;
+  /// Backend `gender` ID-si.
+  final String? genderId;
 }

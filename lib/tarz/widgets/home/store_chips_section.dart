@@ -135,7 +135,6 @@ class _StoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logoAsset = store.logoAsset;
     final borderRadius =
         BorderRadius.circular(TarzHomeLayout.storeCardRadius);
 
@@ -157,16 +156,39 @@ class _StoreCard extends StatelessWidget {
             ),
           ),
           clipBehavior: Clip.antiAlias,
-          child: logoAsset != null && logoAsset.isNotEmpty
-              ? Image.asset(
-                  logoAsset,
-                  fit: BoxFit.fill,
-                  errorBuilder: (_, __, ___) => _StoreLabel(name: store.name),
-                )
-              : _StoreLabel(name: store.name),
+          child: _StoreLogo(store: store),
         ),
       ),
     );
+  }
+}
+
+class _StoreLogo extends StatelessWidget {
+  const _StoreLogo({required this.store});
+
+  final TarzStorePreview store;
+
+  @override
+  Widget build(BuildContext context) {
+    final logoUrl = store.logoUrl;
+    if (logoUrl != null && logoUrl.isNotEmpty) {
+      return Image.network(
+        logoUrl,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => _StoreLabel(name: store.name),
+      );
+    }
+
+    final logoAsset = store.logoAsset;
+    if (logoAsset != null && logoAsset.isNotEmpty) {
+      return Image.asset(
+        logoAsset,
+        fit: BoxFit.fill,
+        errorBuilder: (_, __, ___) => _StoreLabel(name: store.name),
+      );
+    }
+
+    return _StoreLabel(name: store.name);
   }
 }
 

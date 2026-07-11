@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'product_listing_args.dart';
 import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/register_screen.dart';
 import '../screens/splash_screen.dart';
 import '../tarz/data/tarz_mock_catalog.dart';
+import '../tarz/models/product_filter_state.dart';
 import '../tarz/models/tarz_product_preview.dart';
 import '../tarz/screens/product_details_screen.dart';
 import '../tarz/screens/tarz_cart_screen.dart';
@@ -13,21 +15,7 @@ import '../tarz/screens/tarz_filter_screen.dart';
 import '../tarz/screens/tarz_notifications_screen.dart';
 import '../tarz/screens/tarz_search_screen.dart';
 
-/// Məhsul siyahısı səhifəsinə `Navigator.pushNamed` ilə ötürülən arqumentlər.
-class ProductListingArgs {
-  const ProductListingArgs({
-    required this.title,
-    required this.products,
-    this.totalCount,
-    this.isLoading = false,
-  });
-
-  final String title;
-  final List<TarzProductPreview> products;
-  /// API-dən gələn ümumi məhsul sayı; null olduqda `products.length` istifadə olunur.
-  final int? totalCount;
-  final bool isLoading;
-}
+export 'product_listing_args.dart';
 
 /// Məhsul detalları səhifəsinə ötürülən arqumentlər.
 class ProductDetailsArgs {
@@ -71,30 +59,44 @@ class AppRoutes {
           builder: (context) => const TarzSearchScreen(),
         );
       case filter:
-        final count =
-            settings.arguments is int ? settings.arguments as int : null;
-        return MaterialPageRoute<void>(
-          builder: (context) => TarzFilterScreen(productCount: count),
+        final args = settings.arguments;
+        FilterArgs? filterArgs;
+        int? legacyCount;
+        if (args is FilterArgs) {
+          filterArgs = args;
+        } else if (args is int) {
+          legacyCount = args;
+        }
+        return MaterialPageRoute<ProductFilterState>(
+          builder: (context) => TarzFilterScreen(
+            productCount: filterArgs?.productCount ?? legacyCount,
+            initial: filterArgs?.initial ?? const ProductFilterState(),
+            categories: filterArgs?.categories ?? const [],
+          ),
         );
       case productListing:
         final args = settings.arguments;
-        var title = 'Trend';
-        var products = TarzMockCatalog.trendListingDemo();
-        int? totalCount;
-        var isLoading = false;
         if (args is ProductListingArgs) {
-          title = args.title;
-          products = args.products;
-          totalCount = args.totalCount;
-          isLoading = args.isLoading;
+          return MaterialPageRoute<void>(
+            fullscreenDialog: false,
+            builder: (context) => TarzCategoryListingScreen(
+              title: args.title,
+              categoryId: args.categoryId,
+              genderIndex: args.genderIndex,
+              searchQuery: args.searchQuery,
+              initialFilter: args.initialFilter,
+              products: args.products,
+              totalCount: args.totalCount,
+              useApi: args.usesApi,
+            ),
+          );
         }
         return MaterialPageRoute<void>(
           fullscreenDialog: false,
           builder: (context) => TarzCategoryListingScreen(
-            title: title,
-            products: products,
-            totalCount: totalCount,
-            isLoading: isLoading,
+            title: 'Trend',
+            products: TarzMockCatalog.trendListingDemo(),
+            useApi: false,
           ),
         );
       case productDetails:

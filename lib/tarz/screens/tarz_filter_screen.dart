@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../models/plp_category_option.dart';
+import '../models/product_filter_state.dart';
 import '../theme/tarz_colors.dart';
 import '../theme/tarz_spacing.dart';
 import '../widgets/filter/tarz_filter_chip.dart';
@@ -14,12 +16,14 @@ class TarzFilterScreen extends StatefulWidget {
   const TarzFilterScreen({
     super.key,
     this.productCount,
-    this.onApply,
+    this.initial = const ProductFilterState(),
+    this.categories = const [],
   });
 
   /// API/state-dən gələn məhsul sayı; null olduqda UI-da göstərilmir.
   final int? productCount;
-  final VoidCallback? onApply;
+  final ProductFilterState initial;
+  final List<PlpCategoryOption> categories;
 
   @override
   State<TarzFilterScreen> createState() => _TarzFilterScreenState();
@@ -32,7 +36,7 @@ class _TarzFilterScreenState extends State<TarzFilterScreen> {
   static const double _priceDomainMin = 0;
   static const double _priceDomainMax = 5000;
 
-  int _quickFilterIndex = 0; // Endirimlər
+  int _quickFilterIndex = 2;
 
   final Set<String> _seasons = {};
   final TextEditingController _minPrice = TextEditingController();
@@ -49,21 +53,22 @@ class _TarzFilterScreenState extends State<TarzFilterScreen> {
   bool _categoriesShowMore = false;
   bool _colorsShowMore = false;
 
-  final Set<String> _selectedCategories = {};
+  final Set<String> _selectedSubcategoryIds = {};
   final Set<String> _selectedColors = {};
   final Set<String> _selectedSizes = {};
 
   static const _quickFilters = ['Endirimlər', 'Yenilər', 'Trend'];
 
-  static const _categories = [
-    'Hərkəs üçün',
-    'Aksesuarlar',
-    'Bel çantaları, həftəsonu çantaları və duffle çantalar',
-    'Düyməli köynəklər',
-    "Hoodielər & Sweatshirtlər",
-    'Şalvarlar',
-    'Donlar',
-  ];
+  List<PlpCategoryOption> get _categoryOptions {
+    if (widget.categories.isNotEmpty) return widget.categories;
+    return const [
+      PlpCategoryOption(id: 'fallback-1', name: 'Geyim'),
+      PlpCategoryOption(id: 'fallback-2', name: 'Ayaqqabı'),
+      PlpCategoryOption(id: 'fallback-3', name: 'Çantalar'),
+      PlpCategoryOption(id: 'fallback-4', name: 'Aksesuarlar'),
+      PlpCategoryOption(id: 'fallback-5', name: 'Donlar'),
+    ];
+  }
 
   static final _colorOptions = [
     const TarzFilterColorOption(id: 'black', label: 'Qara', color: Color(0xFF1A1A1A)),
@@ -83,6 +88,18 @@ class _TarzFilterScreenState extends State<TarzFilterScreen> {
   @override
   void initState() {
     super.initState();
+    _quickFilterIndex = widget.initial.quickFilterIndex;
+    _sortCheapFirst = widget.initial.sortCheapFirst;
+    _sortExpensiveFirst = widget.initial.sortExpensiveFirst;
+    _selectedSubcategoryIds.addAll(widget.initial.subcategoryIds);
+
+    if (widget.initial.minPrice != null || widget.initial.maxPrice != null) {
+      _priceRange = RangeValues(
+        widget.initial.minPrice ?? _priceDomainMin,
+        widget.initial.maxPrice ?? _priceDomainMax,
+      );
+    }
+
     _minPrice.addListener(_syncPriceFromFields);
     _maxPrice.addListener(_syncPriceFromFields);
     _syncControllersFromRange();
@@ -126,13 +143,13 @@ class _TarzFilterScreenState extends State<TarzFilterScreen> {
 
   void _resetFilters() {
     setState(() {
-      _quickFilterIndex = 0;
+      _quickFilterIndex = 2;
       _seasons.clear();
       _priceRange = const RangeValues(100, 2480);
       _syncControllersFromRange();
       _sortCheapFirst = false;
       _sortExpensiveFirst = false;
-      _selectedCategories.clear();
+      _selectedSubcategoryIds.clear();
       _selectedColors.clear();
       _selectedSizes.clear();
     });
@@ -148,12 +165,12 @@ class _TarzFilterScreenState extends State<TarzFilterScreen> {
     });
   }
 
-  void _toggleCategory(String c) {
+  void _toggleSubcategory(String id) {
     setState(() {
-      if (_selectedCategories.contains(c)) {
-        _selectedCategories.remove(c);
+      if (_selectedSubcategoryIds.contains(id)) {
+        _selectedSubcategoryIds.remove(id);
       } else {
-        _selectedCategories.add(c);
+        _selectedSubcategoryIds.add(id);
       }
     });
   }
@@ -180,8 +197,9 @@ class _TarzFilterScreenState extends State<TarzFilterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final visibleCategories =
-        _categoriesShowMore ? _categories : _categories.take(5).toList();
+    final visibleCategories = _categoriesShowMore
+        ? _categoryOptions
+        : _categoryOptions.take(5).toList();
     final primaryColors = _colorOptions.take(5).toList();
     final extraColors = _colorOptions.skip(5).toList();
     final visibleExtraColors = _colorsShowMore ? extraColors : <TarzFilterColorOption>[];
@@ -514,7 +532,7 @@ class _TarzFilterScreenState extends State<TarzFilterScreen> {
     );
   }
 
-  Widget _buildCategoriesSection(List<String> visible) {
+  Widget _buildCategoriesSection(List<PlpCategoryOption> visible) {
     return TarzFilterExpandableSection(
       title: 'Kateqoriyalar',
       expanded: _categoriesExpanded,
@@ -522,30 +540,43 @@ class _TarzFilterScreenState extends State<TarzFilterScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ...visible.map(_categoryCheckbox),
-          if (!_categoriesShowMore && _categories.length > 5)
+          ...visible.map(_subcategoryCheckbox),
+          if (!_categoriesShowMore && _categoryOptions.length > 5)
             _moreButton(() => setState(() => _categoriesShowMore = true)),
         ],
       ),
     );
   }
 
-  Widget _categoryCheckbox(String label) {
+  Widget _subcategoryCheckbox(PlpCategoryOption option) {
     return Theme(
       data: Theme.of(context).copyWith(visualDensity: VisualDensity.compact),
       child: CheckboxListTile(
-        value: _selectedCategories.contains(label),
-        onChanged: (_) => _toggleCategory(label),
+        value: _selectedSubcategoryIds.contains(option.id),
+        onChanged: (_) => _toggleSubcategory(option.id),
         contentPadding: EdgeInsets.zero,
         dense: true,
         controlAffinity: ListTileControlAffinity.leading,
         activeColor: TarzColors.ink,
         side: const BorderSide(color: _fieldBorder, width: 1.2),
         title: Text(
-          label,
+          option.name,
           style: const TextStyle(fontSize: 13, color: TarzColors.ink, height: 1.3),
         ),
       ),
+    );
+  }
+
+  ProductFilterState _buildResult() {
+    final min = double.tryParse(_minPrice.text);
+    final max = double.tryParse(_maxPrice.text);
+    return ProductFilterState(
+      quickFilterIndex: _quickFilterIndex,
+      minPrice: min,
+      maxPrice: max,
+      sortCheapFirst: _sortCheapFirst,
+      sortExpensiveFirst: _sortExpensiveFirst,
+      subcategoryIds: Set.from(_selectedSubcategoryIds),
     );
   }
 
@@ -587,8 +618,7 @@ class _TarzFilterScreenState extends State<TarzFilterScreen> {
               height: 48,
               child: FilledButton(
                 onPressed: () {
-                  widget.onApply?.call();
-                  Navigator.of(context).maybePop();
+                  Navigator.of(context).pop(_buildResult());
                 },
                 style: FilledButton.styleFrom(
                   backgroundColor: TarzColors.ink,

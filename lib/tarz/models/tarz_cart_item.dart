@@ -4,10 +4,12 @@ import 'package:flutter/foundation.dart';
 class TarzCartItem {
   const TarzCartItem({
     required this.id,
+    required this.productId,
     required this.title,
     required this.brand,
     required this.priceLabel,
     required this.imageAsset,
+    this.imageUrl,
     required this.priceManat,
     this.originalPriceLabel,
     this.originalPriceManat,
@@ -19,10 +21,12 @@ class TarzCartItem {
   });
 
   final String id;
+  final String productId;
   final String title;
   final String brand;
   final String priceLabel;
   final String imageAsset;
+  final String? imageUrl;
   final double priceManat;
   final String? originalPriceLabel;
   final double? originalPriceManat;

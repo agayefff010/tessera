@@ -1,8 +1,4 @@
-import 'package:flutter/material.dart';
-
-import '../models/tarz_children_catalogue_block.dart';
 import '../models/tarz_product_preview.dart';
-import 'tarz_catalogue_assets.dart';
 import 'tarz_product_assets.dart';
 
 /// UI nümunəsi üçün statik məhsul siyahısı (API gələndə əvəz olunacaq).
@@ -26,51 +22,7 @@ abstract final class TarzMockCatalog {
     'Brendlər',
   ];
 
-  /// Uşaq kataloqu — 3 vizual blok.
-  /// TODO: API-dən şəkil və alt kateqoriya siyahısı ilə əvəz et.
-  static List<TarzChildrenCatalogueBlock> childrenCatalogueBlocks() => const [
-        TarzChildrenCatalogueBlock(
-          title: 'Körpələr (0-2 yaş)',
-          subcategories: [
-            'Endirim',
-            'Yeni',
-            'Köynəklər',
-            'Jaketlər',
-            'Şalvarlar',
-          ],
-          backgroundColor: Color(0xFFF5EDE0),
-          imageAsset: TarzCatalogueAssets.childrenKorpeler,
-          imageOnLeft: false,
-          fullWidthBanner: true,
-        ),
-        TarzChildrenCatalogueBlock(
-          title: 'Oğlanlar',
-          subcategories: [
-            'Ayaqqabılar',
-            'Yaz kolleksiyası',
-            'Köynəklər',
-            'Jaketlər',
-            'Corablar',
-          ],
-          backgroundColor: Color(0xFFDCE9F5),
-          imageAsset: TarzCatalogueAssets.childrenOglanlar,
-          imageOnLeft: true,
-          fullWidthBanner: true,
-        ),
-        TarzChildrenCatalogueBlock(
-          title: 'Qızlar',
-          subcategories: [
-            'Məktəbə hazırlıq',
-            'Kardiqanlar',
-            'Cemperlər',
-            'Çantalar',
-          ],
-          backgroundColor: Color(0xFFFCE4EC),
-          imageAsset: TarzCatalogueAssets.childrenQizlar,
-          imageOnLeft: false,
-          fullWidthBanner: true,
-        ),
-      ];
+  /// Uşaq kataloqu — API ilə `CategoryRepository.fetchKidsCatalogueBlocks`.
 
   static List<TarzProductPreview> trending() => const [
         TarzProductPreview(
@@ -206,6 +158,30 @@ abstract final class TarzMockCatalog {
           subtitle: 'Kardiqan',
           priceLabel: '98₼',
           imageAsset: TarzProductAssets.greenCardigan,
+        ),
+      ];
+
+  /// Ana səhifə «Endirimlər» — alt sıra (2 kart).
+  static List<TarzProductPreview> homeDiscountProductsGrid() => const [
+        TarzProductPreview(
+          id: 'dc1',
+          brand: 'ZARA',
+          title: 'Midi düz paltar',
+          subtitle: 'Don',
+          priceLabel: '109 ₼',
+          originalPriceLabel: '149 ₼',
+          badgeLabel: '-27%',
+          imageAsset: TarzProductAssets.greenCardigan,
+        ),
+        TarzProductPreview(
+          id: 'dc2',
+          brand: 'ZARA',
+          title: 'Uşaq geyim test',
+          subtitle: 'Geyim',
+          priceLabel: '9 ₼',
+          originalPriceLabel: '10 ₼',
+          badgeLabel: '-10%',
+          imageAsset: TarzProductAssets.nikeV5Rnr,
         ),
       ];
 

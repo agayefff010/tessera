@@ -6,6 +6,7 @@ abstract final class TarzMockCart {
   static List<TarzCartItem> demoItems() => const [
         TarzCartItem(
           id: 'cart_1',
+          productId: 'cart_1',
           title: 'Brown Check Asymmetric Wrap Skirt',
           brand: 'River Island',
           priceLabel: '90₼',

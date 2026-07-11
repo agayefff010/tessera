@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../routes/app_routes.dart';
+import '../data/category_repository.dart';
 import '../data/tarz_mock_catalog.dart';
+import '../models/plp_category_option.dart';
 import '../theme/tarz_colors.dart';
 import '../theme/tarz_spacing.dart';
 
-/// Yan menyu — cins tabları, kateqoriya siyahısı, kabinet düymələri.
-class TarzHomeDrawer extends StatelessWidget {
+/// Yan menyu — API kateqoriyaları, cins tabları, kabinet düymələri.
+class TarzHomeDrawer extends StatefulWidget {
   const TarzHomeDrawer({
     super.key,
     required this.selectedGenderIndex,
@@ -16,38 +18,50 @@ class TarzHomeDrawer extends StatelessWidget {
 
   final int selectedGenderIndex;
   final ValueChanged<int> onGenderSelected;
-  final ValueChanged<String>? onCategoryTap;
+  final ValueChanged<PlpCategoryOption>? onCategoryTap;
 
-  static const List<List<String>> _categoriesByGender = [
-    [
-      'Yeni',
-      'Cins',
-      "Hoodie'lər & Sweatshirt'lər",
-      'Şalvarlar',
-      'Köynəklər',
-      'Corablar',
-    ],
-    [
-      'Yeni',
-      'Cins',
-      'Köynəklər',
-      'Ayaqqabı',
-      'Aksesuar',
-      'İdman',
-    ],
-    [
-      'Yeni',
-      'Köynək',
-      'Şalvar',
-      'Don',
-      'Ayaqqabı',
-      'Oyuncaq',
-    ],
-  ];
+  @override
+  State<TarzHomeDrawer> createState() => _TarzHomeDrawerState();
+}
 
-  List<String> get _items {
-    final i = selectedGenderIndex.clamp(0, _categoriesByGender.length - 1);
-    return _categoriesByGender[i];
+class _TarzHomeDrawerState extends State<TarzHomeDrawer> {
+  final _categoryRepo = CategoryRepository();
+  List<PlpCategoryOption> _categories = const [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+
+  @override
+  void didUpdateWidget(TarzHomeDrawer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedGenderIndex != widget.selectedGenderIndex) {
+      _loadCategories();
+    }
+  }
+
+  @override
+  void dispose() {
+    _categoryRepo.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadCategories() async {
+    setState(() => _loading = true);
+    try {
+      final cats =
+          await _categoryRepo.fetchCatalogueCategories(widget.selectedGenderIndex);
+      if (!mounted) return;
+      setState(() {
+        _categories = cats;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   void _close(BuildContext context) => Navigator.of(context).pop();
@@ -65,7 +79,6 @@ class TarzHomeDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final labels = TarzMockCatalog.categories;
-
     final screenW = MediaQuery.sizeOf(context).width;
 
     return Drawer(
@@ -88,12 +101,10 @@ class TarzHomeDrawer extends StatelessWidget {
                   Expanded(
                     child: Row(
                       children: List.generate(labels.length, (i) {
-                        final selected = i == selectedGenderIndex;
+                        final selected = i == widget.selectedGenderIndex;
                         return Expanded(
                           child: InkWell(
-                            onTap: () {
-                              onGenderSelected(i);
-                            },
+                            onTap: () => widget.onGenderSelected(i),
                             child: Padding(
                               padding: const EdgeInsets.only(
                                 top: TarzSpacing.xs,
@@ -107,8 +118,12 @@ class TarzHomeDrawer extends StatelessWidget {
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontSize: 15,
-                                      fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
-                                      color: selected ? TarzColors.ink : TarzColors.inkMuted,
+                                      fontWeight: selected
+                                          ? FontWeight.w700
+                                          : FontWeight.w400,
+                                      color: selected
+                                          ? TarzColors.ink
+                                          : TarzColors.inkMuted,
                                     ),
                                   ),
                                   const SizedBox(height: 6),
@@ -116,7 +131,9 @@ class TarzHomeDrawer extends StatelessWidget {
                                     duration: const Duration(milliseconds: 180),
                                     height: selected ? 2.5 : 0,
                                     decoration: BoxDecoration(
-                                      color: selected ? TarzColors.ink : Colors.transparent,
+                                      color: selected
+                                          ? TarzColors.ink
+                                          : Colors.transparent,
                                       borderRadius: BorderRadius.circular(2),
                                     ),
                                   ),
@@ -132,39 +149,49 @@ class TarzHomeDrawer extends StatelessWidget {
                     onPressed: () => _close(context),
                     icon: const Icon(Icons.close_rounded),
                     tooltip: 'Bağla',
-                    style: IconButton.styleFrom(foregroundColor: TarzColors.ink),
+                    style:
+                        IconButton.styleFrom(foregroundColor: TarzColors.ink),
                   ),
                 ],
               ),
             ),
             Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: TarzSpacing.md),
-                itemCount: _items.length,
-                separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF0F0F0)),
-                itemBuilder: (context, index) {
-                  final title = _items[index];
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                    title: Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w400,
-                        color: TarzColors.ink,
+              child: _loading
+                  ? const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : ListView.separated(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: TarzSpacing.md),
+                      itemCount: _categories.length,
+                      separatorBuilder: (_, __) => const Divider(
+                        height: 1,
+                        color: Color(0xFFF0F0F0),
                       ),
+                      itemBuilder: (context, index) {
+                        final option = _categories[index];
+                        return ListTile(
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 4),
+                          title: Text(
+                            option.name,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w400,
+                              color: TarzColors.ink,
+                            ),
+                          ),
+                          trailing: Icon(
+                            Icons.chevron_right_rounded,
+                            color: TarzColors.inkMuted.withValues(alpha: 0.45),
+                          ),
+                          onTap: () {
+                            widget.onCategoryTap?.call(option);
+                            _close(context);
+                          },
+                        );
+                      },
                     ),
-                    trailing: Icon(
-                      Icons.chevron_right_rounded,
-                      color: TarzColors.inkMuted.withValues(alpha: 0.45),
-                    ),
-                    onTap: () {
-                      onCategoryTap?.call(title);
-                      _close(context);
-                    },
-                  );
-                },
-              ),
             ),
             const Divider(height: 1, thickness: 1, color: Color(0xFFE8E8E6)),
             Padding(
@@ -219,52 +246,6 @@ class TarzHomeDrawer extends StatelessWidget {
                         ),
                       ),
                       child: const Text('Qeydiyyatdan keç'),
-                    ),
-                  ),
-                  const SizedBox(height: TarzSpacing.xl),
-                  InkWell(
-                    onTap: () {
-                      // Dil seçimi — növbəti addım
-                    },
-                    borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: TarzSpacing.sm),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.language_rounded,
-                            size: 26,
-                            color: TarzColors.ink.withValues(alpha: 0.75),
-                          ),
-                          const SizedBox(width: TarzSpacing.md),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Azərbaycan',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w500,
-                                    color: TarzColors.ink,
-                                  ),
-                                ),
-                                Text(
-                                  'Dil',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: TarzColors.inkMuted.withValues(alpha: 0.85),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            color: TarzColors.inkMuted.withValues(alpha: 0.45),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/plp_category_option.dart';
 import '../../models/tarz_children_catalogue_block.dart';
 
 /// Uşaq kataloqu vizual bloku — 50/50 mətn/şəkil, pastel fon.
@@ -13,7 +14,7 @@ class ChildrenCatalogueBlock extends StatelessWidget {
 
   final TarzChildrenCatalogueBlock data;
   final VoidCallback onBlockTap;
-  final ValueChanged<String>? onSubcategoryTap;
+  final ValueChanged<PlpCategoryOption>? onSubcategoryTap;
 
   static const double _blockHeight = 152;
   static const Color _titleColor = Color(0xFF111111);
@@ -77,8 +78,8 @@ class _TextSide extends StatelessWidget {
   });
 
   final String title;
-  final List<String> subcategories;
-  final ValueChanged<String>? onSubcategoryTap;
+  final List<PlpCategoryOption> subcategories;
+  final ValueChanged<PlpCategoryOption>? onSubcategoryTap;
 
   @override
   Widget build(BuildContext context) {
@@ -103,19 +104,16 @@ class _TextSide extends StatelessWidget {
                 physics: const NeverScrollableScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: subcategories.map((label) {
+                  children: subcategories.map((option) {
                     return Align(
                       alignment: Alignment.centerLeft,
                       child: InkWell(
-                        onTap: () {
-                          // TODO: Uşaq alt kateqoriya marşrutları API ilə bağlananda yenilə.
-                          onSubcategoryTap?.call(label);
-                        },
+                        onTap: () => onSubcategoryTap?.call(option),
                         borderRadius: BorderRadius.circular(4),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 1),
                           child: Text(
-                            label,
+                            option.name,
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,

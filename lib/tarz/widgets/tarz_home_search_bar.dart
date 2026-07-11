@@ -3,19 +3,28 @@ import 'package:flutter/material.dart';
 import '../theme/tarz_colors.dart';
 import '../theme/tarz_spacing.dart';
 
-/// Ana səhifə — alt xəttli mətn sahəsi + «Axtar» həb düyməsi.
-class TarzHomeSearchBar extends StatelessWidget {
+/// Ana səhifə / axtarış — alt xəttli mətn sahəsi + «Axtar» həb düyməsi.
+class TarzHomeSearchBar extends StatefulWidget {
   const TarzHomeSearchBar({
     super.key,
     required this.controller,
+    this.focusNode,
+    this.autofocus = false,
     this.onSearch,
     this.hintText = 'Məhsul, brend və ya rəng',
   });
 
   final TextEditingController controller;
+  final FocusNode? focusNode;
+  final bool autofocus;
   final ValueChanged<String>? onSearch;
   final String hintText;
 
+  @override
+  State<TarzHomeSearchBar> createState() => _TarzHomeSearchBarState();
+}
+
+class _TarzHomeSearchBarState extends State<TarzHomeSearchBar> {
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -30,16 +39,18 @@ class TarzHomeSearchBar extends StatelessWidget {
         children: [
           Expanded(
             child: TextField(
-              controller: controller,
+              controller: widget.controller,
+              focusNode: widget.focusNode,
+              autofocus: widget.autofocus,
               textInputAction: TextInputAction.search,
-              onSubmitted: onSearch,
+              onSubmitted: widget.onSearch,
               cursorColor: TarzColors.ink,
               style: const TextStyle(
                 fontSize: 15,
                 color: TarzColors.ink,
               ),
               decoration: InputDecoration(
-                hintText: hintText,
+                hintText: widget.hintText,
                 hintStyle: TextStyle(
                   color: TarzColors.inkMuted.withValues(alpha: 0.75),
                   fontSize: 15,
@@ -72,7 +83,7 @@ class TarzHomeSearchBar extends StatelessWidget {
           FilledButton(
             onPressed: () {
               FocusScope.of(context).unfocus();
-              onSearch?.call(controller.text.trim());
+              widget.onSearch?.call(widget.controller.text.trim());
             },
             style: FilledButton.styleFrom(
               backgroundColor: TarzColors.ink,

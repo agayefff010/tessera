@@ -2,7 +2,14 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../routes/app_routes.dart';
+import '../models/auth_user.dart';
+import '../services/api_exception.dart';
+import '../services/auth_service.dart';
+import '../tarz/widgets/keyboard_aware_scroll_view.dart';
 import '../tarz/widgets/tarz_bottom_navigation.dart';
+import '../tarz/widgets/tarz_flash_message.dart';
+import '../tarz/cart/tarz_cart_controller.dart';
+import '../tarz/wishlist/tarz_wishlist_controller.dart';
 import '../widgets/register/register_social_icons.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -20,6 +27,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _authService = AuthService();
+
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -28,12 +38,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _toast(String message) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
+  void _toast(String message) => TarzFlashMessage.show(context, message);
 
   void _onNavChanged(int index) {
     if (index == 4) return;
@@ -44,22 +49,56 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Future<void> _submitLogin() async {
+    if (_isLoading) return;
+
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (email.isEmpty || password.isEmpty) {
+      _toast('Email və şifrə daxil edin');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await _authService.login(email: email, password: password);
+      if (!mounted) return;
+      try {
+        await TarzWishlistController.instance.reload();
+        await TarzCartController.instance.reload();
+      } catch (_) {
+        // Giriş uğurludur; səbət/seçilmişlər sinxronu sonra təkrarlanır.
+      }
+      if (!mounted) return;
+      Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+    } on ApiException catch (e) {
+      if (mounted) _toast(e.message);
+    } on AuthParseException catch (e) {
+      if (mounted) _toast(e.message);
+    } on ApiParseException catch (e) {
+      if (mounted) _toast(e.message);
+    } catch (e) {
+      if (mounted) _toast('Gözlənilməz xəta: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      resizeToAvoidBottomInset: true,
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: _hMargin),
+              child: KeyboardAwareScrollView(
+                padding: const EdgeInsets.fromLTRB(_hMargin, 56, _hMargin, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    SizedBox(height: MediaQuery.sizeOf(context).height * 0.14),
                     const Text(
                       'Daxil olun\nvə ya hesab yaradın',
                       textAlign: TextAlign.left,
@@ -177,22 +216,29 @@ class _LoginScreenState extends State<LoginScreen> {
       width: double.infinity,
       height: 40,
       child: FilledButton(
-        onPressed: () {
-          Navigator.of(context).pushReplacementNamed(AppRoutes.home);
-        },
+        onPressed: _isLoading ? null : _submitLogin,
         style: FilledButton.styleFrom(
           backgroundColor: _ink,
           foregroundColor: Colors.white,
           elevation: 0,
           shape: const StadiumBorder(),
         ),
-        child: const Text(
-          'Daxil ol',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+        child: _isLoading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Text(
+                'Daxil ol',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
       ),
     );
   }

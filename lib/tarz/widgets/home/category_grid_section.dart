@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
 
-import '../../data/tarz_banner_assets.dart';
+import '../../data/tarz_category_assets.dart';
 import '../../theme/tarz_colors.dart';
 
 class HomeCategoryItem {
   const HomeCategoryItem({
     required this.label,
-    required this.imageAsset,
     required this.leftColor,
+    this.imageAsset,
+    this.imageUrl,
+    this.categoryId,
   });
 
   final String label;
-  final String imageAsset;
   final Color leftColor;
+  final String? imageAsset;
+  final String? imageUrl;
+  final String? categoryId;
 }
 
-/// «Kateqoriyalar» — 2×2 şəbəkə (sol rəng + sağ şəkil, Figma).
+/// «Kateqoriyalar» — 2×2 şəbəkə, qara xətlərlə (Figma).
 class CategoryGridSection extends StatelessWidget {
   const CategoryGridSection({
     super.key,
@@ -24,12 +28,15 @@ class CategoryGridSection extends StatelessWidget {
   });
 
   final List<HomeCategoryItem> categories;
-  final ValueChanged<String>? onCategoryTap;
+  final ValueChanged<HomeCategoryItem>? onCategoryTap;
 
-  static const double _gap = 10;
+  static const double _divider = 12;
+  static const Color _dividerColor = Color(0xFF121212);
 
   @override
   Widget build(BuildContext context) {
+    final items = categories.take(4).toList();
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
       child: Column(
@@ -46,33 +53,41 @@ class CategoryGridSection extends StatelessWidget {
           const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, c) {
-              final cellW = (c.maxWidth - _gap) / 2;
-              final cellH = cellW * 0.92;
-              return Column(
-                children: [
-                  for (var row = 0; row < categories.length; row += 2) ...[
-                    if (row > 0) const SizedBox(height: _gap),
-                    Row(
-                      children: [
-                        for (var col = 0; col < 2; col++) ...[
-                          if (col > 0) const SizedBox(width: _gap),
-                          SizedBox(
-                            width: cellW,
-                            height: cellH,
-                            child: row + col < categories.length
-                                ? _CategorySplitCard(
-                                    item: categories[row + col],
-                                    onTap: () => onCategoryTap?.call(
-                                      categories[row + col].label,
-                                    ),
-                                  )
-                                : const SizedBox.shrink(),
-                          ),
-                        ],
-                      ],
-                    ),
+              final cellW = (c.maxWidth - _divider) / 2;
+              final cellH = cellW * 0.72;
+
+              return ColoredBox(
+                color: _dividerColor,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var row = 0; row < 2; row++) ...[
+                      if (row > 0) const SizedBox(height: _divider),
+                      SizedBox(
+                        height: cellH,
+                        child: Row(
+                          children: [
+                            for (var col = 0; col < 2; col++) ...[
+                              if (col > 0) const SizedBox(width: _divider),
+                              SizedBox(
+                                width: cellW,
+                                height: cellH,
+                                child: row * 2 + col < items.length
+                                    ? _CategorySplitCard(
+                                        item: items[row * 2 + col],
+                                        onTap: () => onCategoryTap?.call(
+                                          items[row * 2 + col],
+                                        ),
+                                      )
+                                    : const ColoredBox(color: Colors.white),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               );
             },
           ),
@@ -81,29 +96,71 @@ class CategoryGridSection extends StatelessWidget {
     );
   }
 
-  /// TODO: API-dən kateqoriya siyahısı ilə əvəz et.
   static List<HomeCategoryItem> mockCategories() => const [
         HomeCategoryItem(
           label: 'Donlar',
-          imageAsset: TarzBannerAssets.winter,
+          imageAsset: TarzCategoryAssets.donlar,
           leftColor: Color(0xFF5B7FA8),
         ),
         HomeCategoryItem(
           label: 'Ayaqqabılar',
-          imageAsset: TarzBannerAssets.yakup,
+          imageAsset: TarzCategoryAssets.ayaqqabilar,
           leftColor: Color(0xFF3D2A18),
         ),
         HomeCategoryItem(
           label: 'Toplar',
-          imageAsset: TarzBannerAssets.tomy,
+          imageAsset: TarzCategoryAssets.toplar,
           leftColor: Color(0xFF4A5C38),
         ),
         HomeCategoryItem(
           label: 'Çantalar',
-          imageAsset: TarzBannerAssets.aiTileSquare2,
+          imageAsset: TarzCategoryAssets.cantalar,
           leftColor: Color(0xFFC4A574),
         ),
       ];
+}
+
+class _CategoryImage extends StatelessWidget {
+  const _CategoryImage({required this.item});
+
+  final HomeCategoryItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = item.imageUrl;
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        alignment: Alignment.center,
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    }
+
+    final imageAsset = item.imageAsset;
+    if (imageAsset != null && imageAsset.isNotEmpty) {
+      return Image.asset(
+        imageAsset,
+        fit: BoxFit.cover,
+        alignment: Alignment.center,
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    }
+
+    return _placeholder();
+  }
+
+  Widget _placeholder() {
+    return ColoredBox(
+      color: const Color(0xFFF3F3F3),
+      child: Center(
+        child: Icon(
+          Icons.image_not_supported_outlined,
+          color: item.leftColor.withValues(alpha: 0.45),
+        ),
+      ),
+    );
+  }
 }
 
 class _CategorySplitCard extends StatelessWidget {
@@ -115,26 +172,27 @@ class _CategorySplitCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: TarzColors.surface,
-      clipBehavior: Clip.antiAlias,
+      color: Colors.white,
       child: InkWell(
         onTap: onTap,
         child: Row(
           children: [
             Expanded(
+              flex: 52,
               child: ColoredBox(
                 color: item.leftColor,
                 child: Align(
                   alignment: Alignment.topLeft,
                   child: Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.fromLTRB(14, 14, 8, 8),
                     child: Text(
                       item.label,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 15,
+                        fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        height: 1.2,
+                        height: 1.15,
+                        letterSpacing: -0.2,
                       ),
                     ),
                   ),
@@ -142,17 +200,8 @@ class _CategorySplitCard extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: Image.asset(
-                item.imageAsset,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => ColoredBox(
-                  color: item.leftColor.withValues(alpha: 0.25),
-                  child: const Icon(
-                    Icons.image_not_supported_outlined,
-                    color: Colors.white54,
-                  ),
-                ),
-              ),
+              flex: 48,
+              child: _CategoryImage(item: item),
             ),
           ],
         ),

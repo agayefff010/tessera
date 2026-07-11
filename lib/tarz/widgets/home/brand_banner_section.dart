@@ -54,9 +54,13 @@ class BrandBannerSection extends StatelessWidget {
                   itemCount: 2,
                   separatorBuilder: (_, __) => const SizedBox(width: _cardGap),
                   itemBuilder: (context, index) {
+                    final imageAsset = index == 0
+                        ? TarzBannerAssets.brandsYerli
+                        : TarzBannerAssets.brandsQlobal;
                     return _BrandBanner(
                       width: bannerWidth,
                       height: bannerHeight,
+                      imageAsset: imageAsset,
                       onTap: onBannerTap,
                     );
                   },
@@ -74,11 +78,13 @@ class _BrandBanner extends StatelessWidget {
   const _BrandBanner({
     required this.width,
     required this.height,
+    required this.imageAsset,
     this.onTap,
   });
 
   final double width;
   final double height;
+  final String imageAsset;
   final VoidCallback? onTap;
 
   @override
@@ -93,10 +99,11 @@ class _BrandBanner extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Image.asset(
-            TarzBannerAssets.brandsYerli,
-            fit: BoxFit.fill,
+            imageAsset,
+            fit: BoxFit.cover,
             width: width,
             height: height,
+            gaplessPlayback: true,
             errorBuilder: (context, error, stackTrace) {
               return Center(
                 child: Icon(

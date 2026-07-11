@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../../models/plp_category_option.dart';
 import '../../theme/tarz_colors.dart';
 
 /// PLP kateqoriya seçici bottom sheet.
-Future<String?> showPlpCategoryBottomSheet(
+Future<PlpCategoryOption?> showPlpCategoryBottomSheet(
   BuildContext context, {
-  required List<String> categories,
-  String? selected,
+  required List<PlpCategoryOption> categories,
+  PlpCategoryOption? selected,
 }) {
-  return showModalBottomSheet<String>(
+  return showModalBottomSheet<PlpCategoryOption>(
     context: context,
     backgroundColor: Colors.white,
     isScrollControlled: true,
@@ -52,12 +53,13 @@ Future<String?> showPlpCategoryBottomSheet(
                   separatorBuilder: (_, __) =>
                       const Divider(height: 1, color: Color(0xFFF0F0F0)),
                   itemBuilder: (context, i) {
-                    final label = categories[i];
-                    final isSelected = label == selected;
+                    final option = categories[i];
+                    final isSelected = selected != null &&
+                        (option.id == selected.id || option.name == selected.name);
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
                       title: Text(
-                        label,
+                        option.name,
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight:
@@ -70,7 +72,7 @@ Future<String?> showPlpCategoryBottomSheet(
                       trailing: isSelected
                           ? const Icon(Icons.check_rounded, color: TarzColors.ink)
                           : null,
-                      onTap: () => Navigator.of(context).pop(label),
+                      onTap: () => Navigator.of(context).pop(option),
                     );
                   },
                 ),

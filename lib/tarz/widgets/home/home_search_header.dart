@@ -24,6 +24,7 @@ class HomeSearchHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Material(
@@ -75,7 +76,13 @@ class HomeSearchHeader extends StatelessWidget {
         child: SizedBox(
           width: _size,
           height: _size,
-          child: Icon(icon, size: 22, color: TarzColors.ink.withValues(alpha: 0.75)),
+          child: Center(
+            child: Icon(
+              icon,
+              size: 22,
+              color: TarzColors.ink.withValues(alpha: 0.75),
+            ),
+          ),
         ),
       ),
     );
@@ -85,6 +92,7 @@ class HomeSearchHeader extends StatelessWidget {
     return Material(
       color: _fieldBg,
       shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
       child: SizedBox(
         width: _size,
         height: _size,

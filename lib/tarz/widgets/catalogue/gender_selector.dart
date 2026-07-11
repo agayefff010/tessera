@@ -18,7 +18,7 @@ class GenderSelector extends StatelessWidget {
 
   static const Color womenColor = Color(0xFFFF315F);
   static const Color menColor = Color(0xFF123A8C);
-  static const Color kidsColor = Color(0xFFFF8A00);
+  static const Color kidsColor = Color(0xFFFFC107);
 
   static Color colorForIndex(int index) {
     switch (index) {

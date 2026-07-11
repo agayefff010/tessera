@@ -6,6 +6,7 @@ class TarzStorePreview {
     required this.id,
     required this.name,
     this.logoAsset,
+    this.logoUrl,
   });
 
   final String id;
@@ -13,4 +14,7 @@ class TarzStorePreview {
 
   /// Tam enlikli loqo kartı; boşdursa mətn kartı göstərilir.
   final String? logoAsset;
+
+  /// Backend-dən gələn loqo URL-i.
+  final String? logoUrl;
 }

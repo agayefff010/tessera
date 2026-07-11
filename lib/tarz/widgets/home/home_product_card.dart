@@ -10,11 +10,13 @@ class HomeProductCard extends StatelessWidget {
     required this.product,
     this.onTap,
     this.onWishlist,
+    this.isFavorite = false,
   });
 
   final TarzProductPreview product;
   final VoidCallback? onTap;
   final VoidCallback? onWishlist;
+  final bool isFavorite;
 
   static const Color _badgeRed = Color(0xFFE53935);
 
@@ -44,9 +46,17 @@ class HomeProductCard extends StatelessWidget {
                         child: InkWell(
                           onTap: onWishlist,
                           customBorder: const CircleBorder(),
-                          child: const Padding(
-                            padding: EdgeInsets.all(6),
-                            child: Icon(Icons.favorite_border_rounded, size: 18),
+                          child: Padding(
+                            padding: const EdgeInsets.all(6),
+                            child: Icon(
+                              isFavorite
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              size: 18,
+                              color: isFavorite
+                                  ? _badgeRed
+                                  : TarzColors.ink,
+                            ),
                           ),
                         ),
                       ),
@@ -88,7 +98,10 @@ class HomeProductCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             child: Text(
                               product.badgeLabel!.startsWith('-')
                                   ? product.badgeLabel!
@@ -157,6 +170,8 @@ class HomeProductCard extends StatelessWidget {
         ),
       );
     }
-    return const Center(child: Icon(Icons.checkroom_outlined, color: Colors.black26));
+    return const Center(
+      child: Icon(Icons.checkroom_outlined, color: Colors.black26),
+    );
   }
 }

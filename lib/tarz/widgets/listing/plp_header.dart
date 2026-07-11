@@ -10,12 +10,14 @@ class PlpHeader extends StatelessWidget {
     required this.productCountLabel,
     required this.onBack,
     required this.onSearch,
+    this.accentColor,
   });
 
   final String title;
   final String productCountLabel;
   final VoidCallback onBack;
   final VoidCallback onSearch;
+  final Color? accentColor;
 
   @override
   Widget build(BuildContext context) {
@@ -37,10 +39,10 @@ class PlpHeader extends StatelessWidget {
                   Text(
                     title,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
-                      color: TarzColors.ink,
+                      color: accentColor ?? TarzColors.ink,
                     ),
                   ),
                   const SizedBox(height: 2),

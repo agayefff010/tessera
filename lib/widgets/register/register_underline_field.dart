@@ -10,6 +10,7 @@ class RegisterUnderlineField extends StatelessWidget {
     this.controller,
     this.keyboardType = TextInputType.text,
     this.inputFormatters,
+    this.obscureText = false,
   });
 
   final String label;
@@ -17,6 +18,7 @@ class RegisterUnderlineField extends StatelessWidget {
   final TextEditingController? controller;
   final TextInputType keyboardType;
   final List<TextInputFormatter>? inputFormatters;
+  final bool obscureText;
 
   static const Color _ink = Color(0xFF121212);
   static const Color _muted = Color(0xFF6B6B6B);
@@ -40,6 +42,7 @@ class RegisterUnderlineField extends StatelessWidget {
           controller: controller,
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
+          obscureText: obscureText,
           style: const TextStyle(fontSize: 16, color: _ink),
           decoration: InputDecoration(
             hintText: hint,

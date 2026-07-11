@@ -4,130 +4,91 @@ import '../../cart/tarz_price_utils.dart';
 import '../../models/tarz_cart_item.dart';
 import '../../theme/tarz_colors.dart';
 
-/// Səbət məhsul kartı — şəkil, atributlar, miqdar, əməliyyatlar.
+/// Səbət məhsul sətri — Figma Cart layout.
 class TarzCartItemTile extends StatelessWidget {
   const TarzCartItemTile({
     super.key,
     required this.item,
-    required this.onIncrement,
-    required this.onDecrement,
     this.onFavorite,
     this.onRemove,
   });
 
   final TarzCartItem item;
-  final VoidCallback onIncrement;
-  final VoidCallback onDecrement;
   final VoidCallback? onFavorite;
   final VoidCallback? onRemove;
 
-  static const double _imageWidth = 88;
-  static const double _imageHeight = 104;
-  static const Color _badgeBg = Color(0xFF1A1A1A);
+  static const double _imageWidth = 96;
+  static const double _imageHeight = 118;
+  static const Color _discountRed = Color(0xFFE53935);
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                ? Image.network(
+                    item.imageUrl!,
+                    width: _imageWidth,
+                    height: _imageHeight,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _imagePlaceholder(),
+                  )
+                : Image.asset(
+                    item.imageAsset,
+                    width: _imageWidth,
+                    height: _imageHeight,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _imagePlaceholder(),
+                  ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: TarzColors.ink,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  item.brand,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF2D2D2D),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _priceRow(),
+                const SizedBox(height: 12),
+                _actionRow(),
+              ],
+            ),
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                item.imageAsset,
-                width: _imageWidth,
-                height: _imageHeight,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const SizedBox(
-                  width: _imageWidth,
-                  height: _imageHeight,
-                  child: ColoredBox(color: Color(0xFFF0F0F0)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    item.brand.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                      color: TarzColors.inkMuted.withValues(alpha: 0.9),
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    item.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: TarzColors.ink,
-                      height: 1.25,
-                    ),
-                  ),
-                  if (_attributesText != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      _attributesText!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: TarzColors.inkMuted.withValues(alpha: 0.9),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  _priceRow(),
-                  const SizedBox(height: 10),
-                  _quantityControl(),
-                  const SizedBox(height: 8),
-                  _actionRow(),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
-  }
-
-  String? get _attributesText {
-    final parts = <String>[];
-    if (item.size != null) parts.add('Ölçü: ${item.size}');
-    if (item.color != null) parts.add('Rəng: ${item.color}');
-    if (item.vendor != null) parts.add('Satıcı: ${item.vendor}');
-    if (parts.isEmpty) return null;
-    return parts.join(' · ');
   }
 
   Widget _priceRow() {
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 6,
+      spacing: 8,
       runSpacing: 4,
       children: [
         if (item.originalPriceLabel != null)
@@ -136,7 +97,7 @@ class TarzCartItemTile extends StatelessWidget {
               item.originalPriceManat ?? item.priceManat,
             ),
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               color: TarzColors.inkMuted.withValues(alpha: 0.85),
               decoration: TextDecoration.lineThrough,
             ),
@@ -144,7 +105,7 @@ class TarzCartItemTile extends StatelessWidget {
         Text(
           TarzPriceUtils.formatManatSpaced(item.priceManat),
           style: const TextStyle(
-            fontSize: 14,
+            fontSize: 15,
             fontWeight: FontWeight.w700,
             color: TarzColors.ink,
           ),
@@ -152,16 +113,16 @@ class TarzCartItemTile extends StatelessWidget {
         if (item.badgeLabel != null)
           DecoratedBox(
             decoration: BoxDecoration(
-              color: _badgeBg,
+              color: _discountRed,
               borderRadius: BorderRadius.circular(999),
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               child: Text(
                 item.badgeLabel!,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 9,
+                  fontSize: 10,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -171,98 +132,45 @@ class TarzCartItemTile extends StatelessWidget {
     );
   }
 
-  Widget _quantityControl() {
+  Widget _actionRow() {
     return Row(
       children: [
-        _qtyButton(Icons.remove, onDecrement, enabled: item.quantity > 1),
-        Container(
-          width: 32,
-          alignment: Alignment.center,
-          child: Text(
-            '${item.quantity}',
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: TarzColors.ink,
-            ),
-          ),
-        ),
-        _qtyButton(Icons.add, onIncrement, enabled: true),
-      ],
-    );
-  }
-
-  Widget _qtyButton(IconData icon, VoidCallback onTap, {required bool enabled}) {
-    return Material(
-      color: const Color(0xFFF5F5F5),
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(8),
-        child: SizedBox(
-          width: 32,
-          height: 32,
-          child: Icon(
-            icon,
-            size: 16,
-            color: enabled
-                ? TarzColors.ink
-                : TarzColors.inkMuted.withValues(alpha: 0.35),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _actionRow() {
-    return Wrap(
-      spacing: 4,
-      runSpacing: 0,
-      children: [
-        _actionChip(
-          emoji: '❤️',
-          label: 'Favorilərə',
+        _iconButton(
+          icon: Icons.favorite_border_rounded,
           onTap: onFavorite,
         ),
-        _actionChip(
-          emoji: '🗑',
-          label: 'Sil',
+        const SizedBox(width: 16),
+        _iconButton(
+          icon: Icons.delete_outline_rounded,
           onTap: onRemove,
-          isDestructive: true,
         ),
       ],
     );
   }
 
-  Widget _actionChip({
-    required String emoji,
-    required String label,
+  Widget _iconButton({
+    required IconData icon,
     VoidCallback? onTap,
-    bool isDestructive = false,
   }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 14)),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: isDestructive
-                    ? const Color(0xFFC62828)
-                    : TarzColors.ink,
-              ),
-            ),
-          ],
+        padding: const EdgeInsets.all(2),
+        child: Icon(
+          icon,
+          size: 22,
+          color: const Color(0xFF6B6B6B),
         ),
       ),
+    );
+  }
+
+  Widget _imagePlaceholder() {
+    return const SizedBox(
+      width: _imageWidth,
+      height: _imageHeight,
+      child: ColoredBox(color: Color(0xFFF0F0F0)),
     );
   }
 }

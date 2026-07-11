@@ -85,7 +85,7 @@ class _ActionButton extends StatelessWidget {
         child: AnimatedContainer(
           duration: _duration,
           curve: Curves.easeOutCubic,
-          height: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: selected ? TarzColors.ink : Colors.white,

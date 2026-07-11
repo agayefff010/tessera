@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -15,24 +13,17 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   static const String _splashAsset = 'assets/splashscreen.png';
 
-  Timer? _timer;
-
   @override
   void initState() {
     super.initState();
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
-    _timer = Timer(const Duration(seconds: 3), _goToHome);
+    _goToHomeAfterDelay();
   }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  void _goToHome() {
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
+  Future<void> _goToHomeAfterDelay() async {
+    await Future<void>.delayed(const Duration(seconds: 3));
     if (!mounted) return;
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
     Navigator.of(context).pushReplacementNamed(AppRoutes.home);
   }
 

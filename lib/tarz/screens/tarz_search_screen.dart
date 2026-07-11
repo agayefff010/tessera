@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../routes/app_routes.dart';
 import '../theme/tarz_colors.dart';
+import '../widgets/tarz_flash_message.dart';
 import '../widgets/tarz_home_search_bar.dart';
 
 /// Axtarış ikonundan açılan tam səhifə.
@@ -20,16 +22,33 @@ class _TarzSearchScreenState extends State<TarzSearchScreen> {
     super.dispose();
   }
 
-  void _toast(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(SnackBar(content: Text(message)));
+  void _toast(String message) => TarzFlashMessage.show(context, message);
+
+  void _submitSearch() {
+    final query = _controller.text.trim();
+    if (query.isEmpty) {
+      _toast('Axtarış üçün mətn daxil edin');
+      return;
+    }
+
+    FocusManager.instance.primaryFocus?.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacementNamed(
+        AppRoutes.productListing,
+        arguments: ProductListingArgs(
+          title: 'Axtarış',
+          searchQuery: query,
+        ),
+      );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -50,38 +69,36 @@ class _TarzSearchScreenState extends State<TarzSearchScreen> {
         ),
         centerTitle: true,
       ),
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TarzHomeSearchBar(
-              controller: _controller,
-              onSearch: (q) {
-                final t = q.trim();
-                if (t.isEmpty) {
-                  _toast('Axtarış üçün mətn daxil edin');
-                  return;
-                }
-                _toast('Axtarış: $t');
-              },
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Center(
-                  child: Text(
-                    'Məhsul, brend və ya rəng yazın və «Axtar» düyməsinə basın.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      height: 1.4,
-                      color: TarzColors.inkMuted.withValues(alpha: 0.9),
+      body: MediaQuery.removeViewInsets(
+        context: context,
+        removeBottom: true,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TarzHomeSearchBar(
+                controller: _controller,
+                onSearch: (_) => _submitSearch(),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: Text(
+                      'Məhsul, brend və ya rəng yazın və «Axtar» düyməsinə basın.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.4,
+                        color: TarzColors.inkMuted.withValues(alpha: 0.9),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
