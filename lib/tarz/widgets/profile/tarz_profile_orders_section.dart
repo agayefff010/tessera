@@ -98,6 +98,14 @@ class _OrderTile extends StatelessWidget {
     }
   }
 
+  String _paymentLabel(String raw) {
+    final v = raw.toLowerCase();
+    if (v.contains('success') || v.contains('paid')) return 'Ödəniş edildi';
+    if (v.contains('pending')) return 'Ödəniş gözlənilir';
+    if (v.contains('fail') || v.contains('cancel')) return 'Ödəniş alınmadı';
+    return raw;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -136,7 +144,9 @@ class _OrderTile extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '${order.itemCount} məhsul · ${TarzPriceUtils.formatManatSpaced(order.totalManat)}',
+            order.itemCount > 0
+                ? '${order.itemCount} məhsul · ${TarzPriceUtils.formatManatSpaced(order.totalManat)}'
+                : TarzPriceUtils.formatManatSpaced(order.totalManat),
             style: TextStyle(
               fontSize: 13,
               color: TarzColors.inkMuted.withValues(alpha: 0.9),
@@ -144,7 +154,13 @@ class _OrderTile extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${order.deliveryMethod.labelAz} · ${_formatDate(order.createdAt)}',
+            [
+              order.deliveryMethod.labelAz,
+              if (order.paymentStatus != null &&
+                  order.paymentStatus!.trim().isNotEmpty)
+                _paymentLabel(order.paymentStatus!.trim()),
+              _formatDate(order.createdAt),
+            ].join(' · '),
             style: TextStyle(
               fontSize: 12,
               color: TarzColors.inkMuted.withValues(alpha: 0.75),

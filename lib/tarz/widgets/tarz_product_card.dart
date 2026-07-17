@@ -4,6 +4,7 @@ import '../models/tarz_product_preview.dart';
 import '../theme/tarz_colors.dart';
 import '../theme/tarz_spacing.dart';
 import '../theme/tarz_text_styles.dart';
+import '../utils/tarz_image_cache.dart';
 
 class TarzProductCard extends StatelessWidget {
   const TarzProductCard({
@@ -93,20 +94,31 @@ class _ProductImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (imageAsset != null && imageAsset!.isNotEmpty) {
-      return Image.asset(
-        imageAsset!,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _fallback(),
-      );
-    }
-    if (imageUrl == null || imageUrl!.isEmpty) {
-      return _fallback();
-    }
-    return Image.network(
-      imageUrl!,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => _fallback(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cacheW = TarzImageCache.px(context, constraints.maxWidth);
+        final cacheH = TarzImageCache.px(context, constraints.maxHeight);
+
+        if (imageAsset != null && imageAsset!.isNotEmpty) {
+          return Image.asset(
+            imageAsset!,
+            fit: BoxFit.cover,
+            cacheWidth: cacheW,
+            cacheHeight: cacheH,
+            errorBuilder: (_, __, ___) => _fallback(),
+          );
+        }
+        if (imageUrl == null || imageUrl!.isEmpty) {
+          return _fallback();
+        }
+        return Image.network(
+          imageUrl!,
+          fit: BoxFit.cover,
+          cacheWidth: cacheW,
+          cacheHeight: cacheH,
+          errorBuilder: (_, __, ___) => _fallback(),
+        );
+      },
     );
   }
 

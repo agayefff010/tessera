@@ -50,7 +50,7 @@ class TarzCategoryListingScreen extends StatefulWidget {
 
 class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
   final _productRepo = ProductRepository();
-  final _categoryRepo = CategoryRepository();
+  final _categoryRepo = CategoryRepository.instance;
   final _wishlist = TarzWishlistController.instance;
   final _scrollController = ScrollController();
 
@@ -80,10 +80,14 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
     _categoryId = widget.categoryId;
     _genderIndex = widget.genderIndex;
     _filter = widget.initialFilter ?? const ProductFilterState();
-    _wishlist.addListener(_rebuild);
     _scrollController.addListener(_onScroll);
 
+    final search = widget.searchQuery?.trim();
     if (_isApiMode) {
+      if (search != null && search.isNotEmpty && widget.products.isNotEmpty) {
+        _products = List.from(widget.products);
+        _loadedCount = widget.totalCount ?? _products.length;
+      }
       _bootstrapApi();
     } else {
       _products = List.from(widget.products);
@@ -93,21 +97,24 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
 
   @override
   void dispose() {
-    _wishlist.removeListener(_rebuild);
     _scrollController.dispose();
     _productRepo.dispose();
-    _categoryRepo.dispose();
     super.dispose();
   }
 
-  void _rebuild() => setState(() {});
-
   Future<void> _bootstrapApi() async {
-    await _refreshCategoryScope();
-    await Future.wait([
-      _loadCategoryOptions(),
-      _loadFirstPage(),
-    ]);
+    final isSearch =
+        widget.searchQuery != null && widget.searchQuery!.trim().isNotEmpty;
+    if (!isSearch) {
+      await _refreshCategoryScope();
+      await Future.wait([
+        _loadCategoryOptions(),
+        _loadFirstPage(),
+      ]);
+      return;
+    }
+    // Axtarış: kateqoriya/gender ilə qarışdırma — yalnız search query.
+    await _loadFirstPage();
   }
 
   Future<void> _refreshCategoryScope() async {
@@ -145,13 +152,70 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
           return;
         }
       }
-      final catalogue = _genderIndex != null
-          ? await _categoryRepo.fetchCatalogueCategories(_genderIndex!)
-          : const <PlpCategoryOption>[];
+      // Axtarış və ya gender seçilməyənda default: Qadın kataloqu.
+      final gender = _genderIndex ?? 0;
+      final catalogue = await _categoryRepo.fetchCatalogueCategories(gender);
       if (mounted) setState(() => _categoryOptions = catalogue);
     } catch (_) {
       // Kateqoriya siyahısı olmadan da PLP işləyir.
     }
+  }
+
+  Future<void> _openCategories() async {
+    if (_categoryOptions.isEmpty) {
+      setState(() => _activeAction = PlpFilterAction.categories);
+      await _loadCategoryOptions();
+      if (!mounted) return;
+    }
+    if (_categoryOptions.isEmpty) {
+      setState(() => _activeAction = null);
+      _toast('Kateqoriya tapılmadı');
+      return;
+    }
+
+    setState(() => _activeAction = PlpFilterAction.categories);
+    final selectedOption = _categoryOptions.cast<PlpCategoryOption?>().firstWhere(
+          (c) => c!.id == _categoryId || c.name == _title,
+          orElse: () => null,
+        );
+
+    final picked = await showPlpCategoryBottomSheet(
+      context,
+      categories: _categoryOptions,
+      selected: selectedOption,
+    );
+    if (!mounted) return;
+
+    if (picked != null) {
+      if (picked.id == PlpSpecialCategory.discounts) {
+        setState(() {
+          _categoryId = null;
+          _title = picked.name;
+          _filter = _filter.copyWith(quickFilterIndex: 0, subcategoryIds: {});
+        });
+      } else if (picked.id == PlpSpecialCategory.brands) {
+        setState(() {
+          _categoryId = null;
+          _title = picked.name;
+          _filter = const ProductFilterState();
+        });
+      } else {
+        setState(() {
+          _categoryId = picked.id;
+          _title = picked.name;
+          _filter = _filter.copyWith(subcategoryIds: {});
+        });
+      }
+      if (_isApiMode) {
+        await _refreshCategoryScope();
+        await _loadFirstPage();
+        await _loadCategoryOptions();
+      }
+    }
+    setState(
+      () => _activeAction =
+          _categoryId != null ? PlpFilterAction.categories : null,
+    );
   }
 
   String? get _effectiveCategoryId {
@@ -165,31 +229,40 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
       PlpSortMapper.apiValueForIndex(_sortIndex, filterSort: _filter.apiSort);
 
   Future<void> _loadFirstPage() async {
+    final search = widget.searchQuery?.trim();
+    final isSearch = search != null && search.isNotEmpty;
+
     setState(() {
       _loading = true;
       _error = null;
       _lastRawPage = 1;
       _hasMore = true;
-      _products = [];
+      // Axtarışda əvvəlki seed nəticələri saxla — boş «bütün məhsul» flaşı olmasın.
+      if (!isSearch || _products.isEmpty) {
+        _products = isSearch && widget.products.isNotEmpty
+            ? List.from(widget.products)
+            : <TarzProductPreview>[];
+      }
     });
 
     try {
       final result = await _productRepo.fetchProducts(
         page: 1,
-        categoryId: _effectiveCategoryId,
-        categoryScope: _categoryScope,
-        genderIndex: _genderIndex,
-        search: widget.searchQuery,
+        categoryId: isSearch ? null : _effectiveCategoryId,
+        categoryScope: isSearch ? null : _categoryScope,
+        genderIndex: isSearch ? null : _genderIndex,
+        search: search,
         sort: _effectiveSort ?? 'newest',
         minPrice: _filter.minPrice,
         maxPrice: _filter.maxPrice,
+        filterByGender: !isSearch,
       );
 
       if (!mounted) return;
       final processed = _applyClientProcessing(result.products);
       setState(() {
         _products = processed;
-        _loadedCount = _products.length;
+        _loadedCount = result.totalCount ?? processed.length;
         _lastRawPage = result.rawPage;
         _hasMore = result.hasMore && processed.isNotEmpty;
         _loading = false;
@@ -199,6 +272,11 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
       setState(() {
         _error = e is ApiException ? e.message : 'Məlumat yüklənmədi';
         _loading = false;
+        // API uğursuz olsa seed axtarış nəticələrini göstər.
+        if (isSearch && widget.products.isNotEmpty && _products.isEmpty) {
+          _products = List.from(widget.products);
+          _loadedCount = _products.length;
+        }
       });
     }
   }
@@ -206,19 +284,23 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
   Future<void> _loadNextPage() async {
     if (!_isApiMode || _loadingMore || !_hasMore || _loading) return;
 
+    final search = widget.searchQuery?.trim();
+    final isSearch = search != null && search.isNotEmpty;
+
     setState(() => _loadingMore = true);
     final nextStartPage = _lastRawPage + 1;
 
     try {
       final result = await _productRepo.fetchProducts(
         page: nextStartPage,
-        categoryId: _effectiveCategoryId,
-        categoryScope: _categoryScope,
-        genderIndex: _genderIndex,
-        search: widget.searchQuery,
+        categoryId: isSearch ? null : _effectiveCategoryId,
+        categoryScope: isSearch ? null : _categoryScope,
+        genderIndex: isSearch ? null : _genderIndex,
+        search: search,
         sort: _effectiveSort ?? 'newest',
         minPrice: _filter.minPrice,
         maxPrice: _filter.maxPrice,
+        filterByGender: !isSearch,
       );
 
       if (!mounted) return;
@@ -226,7 +308,7 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
       setState(() {
         _lastRawPage = result.rawPage;
         _products = [..._products, ...processed];
-        _loadedCount = _products.length;
+        _loadedCount = result.totalCount ?? _products.length;
         _hasMore = result.hasMore && processed.isNotEmpty;
         _loadingMore = false;
       });
@@ -343,58 +425,6 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
     }
     setState(
       () => _activeAction = _sortIndex == 0 ? null : PlpFilterAction.sort,
-    );
-  }
-
-  Future<void> _openCategories() async {
-    if (_categoryOptions.isEmpty) {
-      _toast('Kateqoriyalar yüklənir...');
-      await _loadCategoryOptions();
-    }
-    if (!mounted || _categoryOptions.isEmpty) return;
-
-    setState(() => _activeAction = PlpFilterAction.categories);
-    final selectedOption = _categoryOptions.cast<PlpCategoryOption?>().firstWhere(
-          (c) => c!.id == _categoryId || c.name == _title,
-          orElse: () => null,
-        );
-
-    final picked = await showPlpCategoryBottomSheet(
-      context,
-      categories: _categoryOptions,
-      selected: selectedOption,
-    );
-    if (!mounted) return;
-
-    if (picked != null) {
-      if (picked.id == PlpSpecialCategory.discounts) {
-        setState(() {
-          _categoryId = null;
-          _title = picked.name;
-          _filter = _filter.copyWith(quickFilterIndex: 0, subcategoryIds: {});
-        });
-      } else if (picked.id == PlpSpecialCategory.brands) {
-        setState(() {
-          _categoryId = null;
-          _title = picked.name;
-          _filter = const ProductFilterState();
-        });
-      } else {
-        setState(() {
-          _categoryId = picked.id;
-          _title = picked.name;
-          _filter = _filter.copyWith(subcategoryIds: {});
-        });
-      }
-      if (_isApiMode) {
-        await _refreshCategoryScope();
-        await _loadFirstPage();
-        await _loadCategoryOptions();
-      }
-    }
-    setState(
-      () => _activeAction =
-          _categoryId != null ? PlpFilterAction.categories : null,
     );
   }
 
@@ -565,7 +595,6 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
                             final product = products[index];
                             return PlpProductCard(
                               product: product,
-                              isFavorite: _wishlist.contains(product.id),
                               onTap: () => _openProductDetails(product),
                               onFavorite: () => _toggleFavorite(product),
                               onLongPress: () => _showQuickActions(product),

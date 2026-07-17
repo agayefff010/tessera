@@ -10,10 +10,26 @@ import 'tarz_gender_config.dart';
 
 /// Kateqoriya ağacı — kataloq və PLP üçün.
 class CategoryRepository {
-  CategoryRepository({ApiClient? client}) : _client = client ?? ApiClient();
+  CategoryRepository({ApiClient? client})
+      : _client = client ?? ApiClient(),
+        _ownsClient = client == null,
+        _isShared = false;
+
+  CategoryRepository._shared()
+      : _client = ApiClient(),
+        _ownsClient = true,
+        _isShared = true;
+
+  /// App-wide shared instance — one `/categories` tree cache for all screens.
+  static final CategoryRepository instance = CategoryRepository._shared();
 
   final ApiClient _client;
-  List<Map<String, dynamic>>? _cache;
+  final bool _ownsClient;
+  final bool _isShared;
+
+  /// Shared across all repository instances (including [instance]).
+  static List<Map<String, dynamic>>? _sharedCache;
+  static Future<List<Map<String, dynamic>>>? _sharedLoad;
 
   Future<List<PlpCategoryOption>> fetchCatalogueCategories(int genderIndex) async {
     final genderId = TarzGenderConfig.idForIndex(genderIndex);
@@ -149,6 +165,132 @@ class CategoryRepository {
           categoryId: apiBySlot[i],
         ),
     ];
+  }
+
+  /// Outfit role (`shoes`, `bag`, …) → gender altında kateqoriya ID.
+  Future<String?> findCategoryIdForOutfitRole(
+    String role, {
+    String? genderId,
+    int genderIndex = 0,
+  }) async {
+    final preferredGender = genderId ?? TarzGenderConfig.idForIndex(genderIndex);
+    final genderOrder = <String>[
+      preferredGender,
+      ...TarzGenderConfig.genderIds.where((id) => id != preferredGender),
+    ];
+
+    for (final gid in genderOrder) {
+      final genderNode = await _findGenderNode(gid);
+      if (genderNode == null) continue;
+
+      Map<String, dynamic>? best;
+      var bestScore = -1;
+
+      void consider(Map<String, dynamic> node) {
+        if (_isBrandsNode(node)) return;
+        final score = _outfitRoleMatchScore(role, node);
+        if (score > bestScore) {
+          bestScore = score;
+          best = node;
+        }
+      }
+
+      final children = genderNode['children'];
+      if (children is List) {
+        for (final child in children) {
+          if (child is! Map<String, dynamic>) continue;
+          consider(child);
+          // Alt kateqoriyalara da bax (məs. Geyim → Jaketlər).
+          final nested = child['children'];
+          if (nested is List) {
+            for (final n in nested) {
+              if (n is Map<String, dynamic>) consider(n);
+            }
+          }
+        }
+      }
+
+      final matched = best;
+      if (matched != null && bestScore > 0) {
+        return matched['_id']?.toString();
+      }
+    }
+    return null;
+  }
+
+  /// Yüksək skor = daha dəqiq uyğunluq.
+  int _outfitRoleMatchScore(String role, Map<String, dynamic> node) {
+    final slug = node['slug']?.toString().toLowerCase() ?? '';
+    final name = node['name']?.toString().toLowerCase() ?? '';
+    final hay = '$slug $name';
+
+    switch (role) {
+      case 'shoes':
+        if (hay.contains('ziyafet') || hay.contains('gelinlik')) return 0;
+        if (slug.contains('ayaqqabi') || name.contains('ayaqqabi')) return 3;
+        if (hay.contains('ayaq') || hay.contains('shoe')) return 1;
+        return 0;
+      case 'bag':
+        if (hay.contains('ziyafet')) return 0;
+        if (slug.contains('cantalar') || name.contains('çanta')) return 3;
+        if (hay.contains('cant') || hay.contains('bag')) return 1;
+        return 0;
+      case 'outerwear':
+      case 'jacket':
+        if (hay.contains('aktiv')) return 0;
+        if (hay.contains('jaket') ||
+            hay.contains('ceket') ||
+            hay.contains('palto') ||
+            hay.contains('outer')) {
+          return 4;
+        }
+        if (slug.endsWith('-geyim') || slug == 'geyim' || name == 'geyim') {
+          return 2;
+        }
+        return 0;
+      case 'tops':
+      case 'top':
+        if (hay.contains('aktiv')) return 0;
+        if (hay.contains('kofta') ||
+            hay.contains('bluz') ||
+            hay.contains('top') ||
+            hay.contains('köynək') ||
+            hay.contains('koynək')) {
+          return 4;
+        }
+        if (slug.endsWith('-geyim') || slug == 'geyim' || name == 'geyim') {
+          return 2;
+        }
+        return 0;
+      case 'full-body':
+      case 'dress':
+        if (hay.contains('aktiv')) return 0;
+        if (hay.contains('don') || hay.contains('dress') || hay.contains('tulum')) {
+          return 4;
+        }
+        if (slug.endsWith('-geyim') || slug == 'geyim' || name == 'geyim') {
+          return 2;
+        }
+        return 0;
+      case 'bottoms':
+      case 'pants':
+        if (hay.contains('aktiv')) return 0;
+        if (hay.contains('şalvar') ||
+            hay.contains('salvar') ||
+            hay.contains('pantolon') ||
+            hay.contains('jeans') ||
+            hay.contains('ətək') ||
+            hay.contains('etek')) {
+          return 4;
+        }
+        if (slug.endsWith('-geyim') || slug == 'geyim' || name == 'geyim') {
+          return 2;
+        }
+        return 0;
+      default:
+        if (slug.endsWith('-geyim') || slug == 'geyim') return 1;
+        return 0;
+    }
   }
 
   /// Donlar / Toplar və s. üçün API kateqoriya ID-si.
@@ -296,15 +438,25 @@ class CategoryRepository {
       name.toLowerCase().contains('brend');
 
   Future<List<Map<String, dynamic>>> _loadTree() async {
-    if (_cache != null) return _cache!;
+    if (_sharedCache != null) return _sharedCache!;
+    _sharedLoad ??= _fetchTree();
+    try {
+      return await _sharedLoad!;
+    } catch (_) {
+      _sharedLoad = null;
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchTree() async {
     final body = await _client.get('/categories');
     final raw = body['data'] ?? body['categories'] ?? body;
     if (raw is! List) {
-      _cache = const [];
-      return _cache!;
+      _sharedCache = const [];
+      return _sharedCache!;
     }
-    _cache = raw.whereType<Map<String, dynamic>>().toList();
-    return _cache!;
+    _sharedCache = raw.whereType<Map<String, dynamic>>().toList();
+    return _sharedCache!;
   }
 
   List<PlpCategoryOption> _fallbackCatalogue() => const [
@@ -315,7 +467,10 @@ class CategoryRepository {
         PlpCategoryOption(id: PlpSpecialCategory.brands, name: 'Brendlər'),
       ];
 
-  void dispose() => _client.dispose();
+  void dispose() {
+    if (_isShared) return;
+    if (_ownsClient) _client.dispose();
+  }
 }
 
 /// Məhsulun kateqoriya / cins filtri.

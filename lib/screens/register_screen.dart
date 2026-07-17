@@ -6,7 +6,8 @@ import '../models/auth_user.dart';
 import '../services/api_exception.dart';
 import '../services/auth_service.dart';
 import '../tarz/cart/tarz_cart_controller.dart';
-import '../tarz/widgets/keyboard_aware_scroll_view.dart';
+import '../tarz/orders/tarz_orders_controller.dart';
+import '../tarz/widgets/hide_when_keyboard_open.dart';
 import '../tarz/widgets/tarz_flash_message.dart';
 import '../tarz/wishlist/tarz_wishlist_controller.dart';
 import '../widgets/register/register_social_button.dart';
@@ -27,9 +28,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _phone = TextEditingController();
   final _password = TextEditingController();
   final _authService = AuthService();
-
-  bool _newsletter = false;
-  bool _isLoading = false;
+  final _newsletter = ValueNotifier<bool>(false);
+  final _loading = ValueNotifier<bool>(false);
 
   static const Color _pageGrey = Color(0xFFF2F2F2);
   static const Color _barGrey = Color(0xFFE6E6E6);
@@ -41,15 +41,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _name.dispose();
     _phone.dispose();
     _password.dispose();
+    _newsletter.dispose();
+    _loading.dispose();
+    _authService.dispose();
     super.dispose();
   }
 
   void _toast(String m) => TarzFlashMessage.show(context, m);
 
   Future<void> _submitRegister() async {
-    if (_isLoading) return;
+    if (_loading.value) return;
 
-    setState(() => _isLoading = true);
+    FocusScope.of(context).unfocus();
+    _loading.value = true;
     try {
       await _authService.register(
         name: _name.text,
@@ -61,9 +65,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       try {
         await TarzWishlistController.instance.reload();
         await TarzCartController.instance.reload();
-      } catch (_) {
-        // Qeydiyyat uğurludur; səbət/seçilmişlər sinxronu sonra təkrarlanır.
-      }
+        await TarzOrdersController.instance.reload();
+      } catch (_) {}
       if (!mounted) return;
       _toast('Qeydiyyat uğurla tamamlandı');
       Navigator.of(context).pushReplacementNamed(AppRoutes.home);
@@ -85,7 +88,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } catch (e) {
       if (mounted) _toast('Gözlənilməz xəta baş verdi');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) _loading.value = false;
     }
   }
 
@@ -93,14 +96,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _pageGrey,
+      // false → ekran klaviatura ilə sıxılmır / silkələnmir.
       resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.sizeOf(context).width >= 600 ? 520 : double.infinity,
-            ),
+            constraints: const BoxConstraints(maxWidth: 520),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -114,12 +116,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                          icon: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 20,
+                          ),
                           onPressed: () {
                             if (Navigator.canPop(context)) {
                               Navigator.pop(context);
                             } else {
-                              Navigator.pushReplacementNamed(context, AppRoutes.login);
+                              Navigator.pushReplacementNamed(
+                                context,
+                                AppRoutes.login,
+                              );
                             }
                           },
                           tooltip: 'Geri',
@@ -141,9 +149,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 Expanded(
-                  child: KeyboardAwareScrollView(
-                    keyboardExtra: 28,
+                  child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
                     child: ColoredBox(
                       color: Colors.white,
                       child: Padding(
@@ -151,77 +160,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                                const Text(
-                                  'Daxil olun və ya hesab yaradın',
-                                  style: TextStyle(
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.w600,
-                                    height: 1.2,
-                                    color: Color(0xFF121212),
-                                  ),
-                                ),
-                                const SizedBox(height: 36),
-                                RegisterUnderlineField(
-                                  label: 'Email',
-                                  hint: 'Email adresinizi bura qeyd edin',
-                                  controller: _email,
-                                  keyboardType: TextInputType.emailAddress,
-                                ),
-                                const SizedBox(height: 28),
-                                RegisterUnderlineField(
-                                  label: 'Şifrə',
-                                  hint: 'Şifrənizi daxil edin',
-                                  controller: _password,
-                                  obscureText: true,
-                                ),
-                                const SizedBox(height: 28),
-                                RegisterUnderlineField(
-                                  label: 'Ad',
-                                  hint: 'Adınızı bura qeyd edin',
-                                  controller: _name,
-                                ),
-                                const SizedBox(height: 28),
-                                RegisterUnderlineField(
-                                  label: 'Telefon',
-                                  hint: '+994 ** *** ** **',
-                                  controller: _phone,
-                                  keyboardType: TextInputType.phone,
-                                ),
-                                const SizedBox(height: 28),
-                                _LegalConsentText(
-                                  onTerms: () => _toast('İstifadə şərtləri'),
-                                  onPrivacy: () => _toast('Məxfilik siyasəti'),
-                                ),
-                                const SizedBox(height: 20),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: Checkbox(
-                                        value: _newsletter,
-                                        onChanged: (v) => setState(() => _newsletter = v ?? false),
-                                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Expanded(
-                                      child: Text(
-                                        'Yeni imtiyazlar və sevimli brendlərin kolleksiyalarını '
-                                        'qaçırmamaq üçün bülletenə abunə olun.',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          height: 1.5,
-                                          color: Color(0xFF3D3D3D),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 28),
-                                SizedBox(
+                            const Text(
+                              'Daxil olun və ya hesab yaradın',
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w600,
+                                height: 1.2,
+                                color: Color(0xFF121212),
+                              ),
+                            ),
+                            const SizedBox(height: 36),
+                            RegisterUnderlineField(
+                              label: 'Email',
+                              hint: 'Email adresinizi bura qeyd edin',
+                              controller: _email,
+                              keyboardType: TextInputType.emailAddress,
+                              textInputAction: TextInputAction.next,
+                            ),
+                            const SizedBox(height: 28),
+                            RegisterUnderlineField(
+                              label: 'Şifrə',
+                              hint: 'Şifrənizi daxil edin',
+                              controller: _password,
+                              obscureText: true,
+                              textInputAction: TextInputAction.next,
+                            ),
+                            const SizedBox(height: 28),
+                            RegisterUnderlineField(
+                              label: 'Ad',
+                              hint: 'Adınızı bura qeyd edin',
+                              controller: _name,
+                              textInputAction: TextInputAction.next,
+                            ),
+                            const SizedBox(height: 28),
+                            RegisterUnderlineField(
+                              label: 'Telefon',
+                              hint: '+994 ** *** ** **',
+                              controller: _phone,
+                              keyboardType: TextInputType.phone,
+                              textInputAction: TextInputAction.done,
+                              onSubmitted: (_) => _submitRegister(),
+                            ),
+                            const SizedBox(height: 28),
+                            _LegalConsentText(
+                              onTerms: () => _toast('İstifadə şərtləri'),
+                              onPrivacy: () => _toast('Məxfilik siyasəti'),
+                            ),
+                            const SizedBox(height: 20),
+                            _NewsletterOptIn(listenable: _newsletter),
+                            const SizedBox(height: 28),
+                            ValueListenableBuilder<bool>(
+                              valueListenable: _loading,
+                              builder: (context, isLoading, _) {
+                                return SizedBox(
                                   width: double.infinity,
                                   height: 56,
                                   child: FilledButton(
@@ -229,12 +220,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       backgroundColor: _charcoal,
                                       foregroundColor: Colors.white,
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(999),
+                                        borderRadius:
+                                            BorderRadius.circular(999),
                                       ),
                                       elevation: 0,
                                     ),
-                                    onPressed: _isLoading ? null : _submitRegister,
-                                    child: _isLoading
+                                    onPressed:
+                                        isLoading ? null : _submitRegister,
+                                    child: isLoading
                                         ? const SizedBox(
                                             width: 22,
                                             height: 22,
@@ -251,47 +244,93 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                             ),
                                           ),
                                   ),
-                                ),
-                                const SizedBox(height: 22),
-                                const Center(
-                                  child: Text(
-                                    'yaxud',
-                                    style: TextStyle(
-                                      color: Color(0xFF6B6B6B),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 22),
-                                RegisterSocialButton(
-                                  label: 'Google ilə daxil ol',
-                                  leading: RegisterSocialIcons.google(),
-                                  onPressed: () => _toast('Google'),
-                                ),
-                                const SizedBox(height: 14),
-                                RegisterSocialButton(
-                                  label: 'Apple ilə daxil ol',
-                                  leading: RegisterSocialIcons.apple(),
-                                  onPressed: () => _toast('Apple'),
-                                ),
-                                const SizedBox(height: 14),
-                                RegisterSocialButton(
-                                  label: 'Facebook ilə daxil ol',
-                                  leading: RegisterSocialIcons.facebook(),
-                                  onPressed: () => _toast('Facebook'),
-                                ),
-                              ],
+                                );
+                              },
                             ),
-                          ),
+                            const SizedBox(height: 22),
+                            const Center(
+                              child: Text(
+                                'yaxud',
+                                style: TextStyle(
+                                  color: Color(0xFF6B6B6B),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+                            RegisterSocialButton(
+                              label: 'Google ilə daxil ol',
+                              leading: RegisterSocialIcons.google(),
+                              onPressed: () => _toast('Google'),
+                            ),
+                            const SizedBox(height: 14),
+                            RegisterSocialButton(
+                              label: 'Apple ilə daxil ol',
+                              leading: RegisterSocialIcons.apple(),
+                              onPressed: () => _toast('Apple'),
+                            ),
+                            const SizedBox(height: 14),
+                            RegisterSocialButton(
+                              label: 'Facebook ilə daxil ol',
+                              leading: RegisterSocialIcons.facebook(),
+                              onPressed: () => _toast('Facebook'),
+                            ),
+                            // Yalnız spacer viewInsets oxuyur — TextField-lər yox.
+                            const KeyboardBottomSpacer(extra: 28),
+                          ],
                         ),
                       ),
                     ),
+                  ),
+                ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _NewsletterOptIn extends StatelessWidget {
+  const _NewsletterOptIn({required this.listenable});
+
+  final ValueNotifier<bool> listenable;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: listenable,
+      builder: (context, value, _) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Checkbox(
+                value: value,
+                onChanged: (v) => listenable.value = v ?? false,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Yeni imtiyazlar və sevimli brendlərin kolleksiyalarını '
+                'qaçırmamaq üçün bülletenə abunə olun.',
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.5,
+                  color: Color(0xFF3D3D3D),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -340,7 +379,7 @@ class _LegalConsentTextState extends State<_LegalConsentText> {
 
   @override
   Widget build(BuildContext context) {
-    final base = const TextStyle(
+    const base = TextStyle(
       fontSize: 13,
       height: 1.5,
       color: Color(0xFF5C5C5C),

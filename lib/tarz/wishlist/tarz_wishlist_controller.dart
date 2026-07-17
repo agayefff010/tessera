@@ -14,6 +14,7 @@ class TarzWishlistController extends ChangeNotifier {
   final WishlistService _service = WishlistService();
 
   final List<TarzProductPreview> _items = [];
+  final Map<String, ValueNotifier<bool>> _favoriteFlags = {};
 
   bool _initialized = false;
   bool _loading = false;
@@ -28,6 +29,28 @@ class TarzWishlistController extends ChangeNotifier {
 
   bool contains(String productId) =>
       _items.any((item) => item.id == productId);
+
+  /// Per-product favorite flag — only listeners for this id rebuild on toggle.
+  ValueListenable<bool> favoriteListenable(String productId) {
+    return _favoriteFlags.putIfAbsent(
+      productId,
+      () => ValueNotifier<bool>(contains(productId)),
+    );
+  }
+
+  void _syncFavoriteFlag(String productId) {
+    final flag = _favoriteFlags[productId];
+    if (flag == null) return;
+    final next = contains(productId);
+    if (flag.value != next) flag.value = next;
+  }
+
+  void _syncAllFavoriteFlags() {
+    for (final entry in _favoriteFlags.entries) {
+      final next = contains(entry.key);
+      if (entry.value.value != next) entry.value.value = next;
+    }
+  }
 
   /// İlk açılışda lokal + API yükləməsi.
   Future<void> ensureLoaded() async {
@@ -55,6 +78,7 @@ class TarzWishlistController extends ChangeNotifier {
       }
 
       _initialized = true;
+      _syncAllFavoriteFlags();
     } finally {
       _loading = false;
       notifyListeners();
@@ -67,6 +91,7 @@ class TarzWishlistController extends ChangeNotifier {
     if (contains(product.id)) return;
 
     _items.add(product);
+    _syncFavoriteFlag(product.id);
     notifyListeners();
 
     await _storage.save(_items);
@@ -81,6 +106,7 @@ class TarzWishlistController extends ChangeNotifier {
   Future<void> remove(String productId) async {
     await ensureLoaded();
     _items.removeWhere((item) => item.id == productId);
+    _syncFavoriteFlag(productId);
     notifyListeners();
 
     await _storage.save(_items);
@@ -103,6 +129,7 @@ class TarzWishlistController extends ChangeNotifier {
 
   Future<void> clear() async {
     _items.clear();
+    _syncAllFavoriteFlags();
     notifyListeners();
     await _storage.clear();
   }
@@ -110,6 +137,10 @@ class TarzWishlistController extends ChangeNotifier {
   @visibleForTesting
   void resetForTest() {
     _items.clear();
+    for (final flag in _favoriteFlags.values) {
+      flag.dispose();
+    }
+    _favoriteFlags.clear();
     _initialized = false;
     _loading = false;
   }

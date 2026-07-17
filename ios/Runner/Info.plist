@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Rəyinizə şəkil əlavə etmək üçün qalereyaya giriş lazımdır.</string>
 </dict>
 </plist>

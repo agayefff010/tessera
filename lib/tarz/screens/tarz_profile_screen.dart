@@ -39,7 +39,6 @@ class _TarzProfileScreenState extends State<TarzProfileScreen> {
   void initState() {
     super.initState();
     _loadProfile();
-    _orders.ensureLoaded();
     _orders.addListener(_onOrdersChanged);
   }
 
@@ -54,7 +53,7 @@ class _TarzProfileScreenState extends State<TarzProfileScreen> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _loadProfile() async {
+  Future<void> _loadProfile({bool forceRefresh = false}) async {
     setState(() {
       _loading = true;
       _error = null;
@@ -85,7 +84,11 @@ class _TarzProfileScreenState extends State<TarzProfileScreen> {
       });
 
       try {
-        await _orders.reload();
+        if (forceRefresh) {
+          await _orders.reload();
+        } else {
+          await _orders.ensureLoaded();
+        }
       } catch (_) {
         // Sifarişlər yüklənməsə profil işləməyə davam edir.
       }
@@ -117,6 +120,7 @@ class _TarzProfileScreenState extends State<TarzProfileScreen> {
 
   Future<void> _logout() async {
     await _authService.logout();
+    _orders.clearSession();
     if (!mounted) return;
     setState(() => _user = null);
     _toast('Hesabdan çıxış edildi');
@@ -168,8 +172,9 @@ class _TarzProfileScreenState extends State<TarzProfileScreen> {
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxW),
             child: RefreshIndicator(
-              onRefresh: _loadProfile,
+              onRefresh: () => _loadProfile(forceRefresh: true),
               child: SingleChildScrollView(
+                key: const PageStorageKey<String>('tarz_profile_scroll'),
                 physics: const AlwaysScrollableScrollPhysics(
                   parent: BouncingScrollPhysics(),
                 ),

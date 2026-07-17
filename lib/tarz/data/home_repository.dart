@@ -1,6 +1,4 @@
 import '../../services/api_client.dart';
-import '../../services/api_exception.dart';
-import '../../services/auth_storage.dart';
 import '../../config/api_config.dart';
 import '../models/tarz_home_banner.dart';
 import '../models/tarz_product_preview.dart';
@@ -10,43 +8,45 @@ import 'banner_mapper.dart';
 import 'category_repository.dart';
 import 'product_mapper.dart';
 import 'tarz_gender_config.dart';
+import 'vendor_repository.dart';
 
 /// Main/Home ekranı üçün backend məlumatları.
 class HomeRepository {
   HomeRepository({ApiClient? client})
       : _client = client ?? ApiClient(),
-        _categoryRepo = CategoryRepository(client: client);
+        _categoryRepo = CategoryRepository.instance,
+        _ownsClient = client == null;
 
   final ApiClient _client;
   final CategoryRepository _categoryRepo;
+  final bool _ownsClient;
 
-  /// Ana səhifə slider bannerləri — `/banners`, yalnız admin üçün `/admin/banners`.
-  Future<List<TarzHomeBanner>> fetchHomeBanners() async {
-    final user = await AuthStorage.instance.getUser();
-    final token = await AuthStorage.instance.getToken();
-    final paths = <String>[ApiConfig.bannersPath];
-    if (user?.role?.toUpperCase() == 'ADMIN') {
-      paths.add(ApiConfig.adminBannersPath);
-    }
+  /// Aktiv reklamlar — `/advertisements/active?placement=…`
+  Future<List<TarzHomeBanner>> fetchActiveAdvertisements(String placement) async {
+    final body = await _client.get(
+      ApiConfig.advertisementsActivePath,
+      query: {'placement': placement},
+    );
+    return BannerMapper.listFromResponse(body);
+  }
 
-    for (final path in paths) {
-      try {
-        final body = await _client.get(
-          path,
-          query: const {'active': 'true'},
-          bearerToken: path == ApiConfig.adminBannersPath ? token : null,
-        );
-        final banners = BannerMapper.listFromResponse(body);
-        if (banners.isNotEmpty) return banners;
-      } on ApiException catch (e) {
-        if (e.statusCode == 401 || e.statusCode == 403 || e.statusCode == 404) {
-          continue;
-        }
-        rethrow;
-      }
-    }
+  /// Ana + side promo bannerlər birlikdə.
+  Future<HomeAdvertisements> fetchHomeAdvertisements() async {
+    final results = await Future.wait([
+      fetchActiveAdvertisements(ApiConfig.adPlacementMainBanner),
+      fetchActiveAdvertisements(ApiConfig.adPlacementSideTop),
+      fetchActiveAdvertisements(ApiConfig.adPlacementSideBottom),
+    ]);
+    return HomeAdvertisements(
+      mainBanner: results[0],
+      sideTop: results[1],
+      sideBottom: results[2],
+    );
+  }
 
-    return const [];
+  /// Geriyə uyğunluq — yalnız main_banner.
+  Future<List<TarzHomeBanner>> fetchHomeBanners() {
+    return fetchActiveAdvertisements(ApiConfig.adPlacementMainBanner);
   }
 
   Future<List<TarzProductPreview>> fetchNewProducts({
@@ -68,21 +68,15 @@ class HomeRepository {
     int? genderIndex,
     int limit = 2,
   }) async {
-    final body = await _client.get(
-      '/products',
-      query: {
-        'hasDiscount': 'true',
-        'limit': '48',
-      },
-    );
-    var products = ProductMapper.listFromResponse(body);
+    final query = <String, String>{
+      'hasDiscount': 'true',
+      'limit': limit.toString(),
+    };
     if (genderIndex != null) {
-      final genderId = TarzGenderConfig.idForIndex(genderIndex);
-      products = products
-          .where((p) => ProductCategoryFilter.matchesGender(p, genderId))
-          .toList();
+      query['gender'] = TarzGenderConfig.idForIndex(genderIndex);
     }
-    return products.take(limit).toList();
+    final body = await _client.get('/products', query: query);
+    return ProductMapper.listFromResponse(body);
   }
 
   Future<List<HomeCategoryItem>> fetchHomeCategories([int? genderIndex]) {
@@ -99,36 +93,32 @@ class HomeRepository {
   }
 
   Future<List<TarzStorePreview>> fetchStores({int limit = 12}) async {
-    final body = await _client.get(
-      '/brands',
-      query: {'limit': limit.toString()},
-    );
-    final data = body['data'];
-    if (data is! List) return StoreChipsSectionFallback.stores;
-
-    final stores = <TarzStorePreview>[];
-    for (final item in data) {
-      if (item is! Map<String, dynamic>) continue;
-      final id = item['_id']?.toString();
-      final name = item['name']?.toString();
-      if (id == null || id.isEmpty || name == null || name.isEmpty) continue;
-      final logo = item['logo']?.toString();
-      stores.add(
-        TarzStorePreview(
-          id: id,
-          name: name,
-          logoUrl: logo != null && logo.isNotEmpty ? logo : null,
-        ),
-      );
+    try {
+      final stores =
+          await VendorRepository(client: _client).fetchStorePreviews(limit: limit);
+      if (stores.isNotEmpty) return stores;
+    } catch (_) {
+      // fallback below
     }
-
-    return stores.isEmpty ? StoreChipsSectionFallback.stores : stores;
+    return StoreChipsSectionFallback.stores;
   }
 
   void dispose() {
-    _categoryRepo.dispose();
-    _client.dispose();
+    if (_ownsClient) _client.dispose();
   }
+}
+
+/// Ana səhifə reklam placement-ləri.
+class HomeAdvertisements {
+  const HomeAdvertisements({
+    this.mainBanner = const [],
+    this.sideTop = const [],
+    this.sideBottom = const [],
+  });
+
+  final List<TarzHomeBanner> mainBanner;
+  final List<TarzHomeBanner> sideTop;
+  final List<TarzHomeBanner> sideBottom;
 }
 
 /// API boş/qaytarılmadıqda mağaza fallback-i.

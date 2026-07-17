@@ -5,10 +5,11 @@ import '../routes/app_routes.dart';
 import '../models/auth_user.dart';
 import '../services/api_exception.dart';
 import '../services/auth_service.dart';
-import '../tarz/widgets/keyboard_aware_scroll_view.dart';
+import '../tarz/widgets/hide_when_keyboard_open.dart';
 import '../tarz/widgets/tarz_bottom_navigation.dart';
 import '../tarz/widgets/tarz_flash_message.dart';
 import '../tarz/cart/tarz_cart_controller.dart';
+import '../tarz/orders/tarz_orders_controller.dart';
 import '../tarz/wishlist/tarz_wishlist_controller.dart';
 import '../widgets/register/register_social_icons.dart';
 
@@ -21,21 +22,58 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   static const Color _ink = Color(0xFF2D2D2D);
-  static const Color _border = Color(0xFF909090);
-  static const Color _placeholder = Color(0xFF9E9E9E);
   static const double _hMargin = 20;
 
+  final _scrollController = ScrollController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _emailFieldKey = GlobalKey();
+  final _passwordFieldKey = GlobalKey();
   final _authService = AuthService();
+  final _loading = ValueNotifier<bool>(false);
 
-  bool _isLoading = false;
+  @override
+  void initState() {
+    super.initState();
+    _emailFocus.addListener(_onEmailFocus);
+    _passwordFocus.addListener(_onPasswordFocus);
+  }
 
   @override
   void dispose() {
+    _emailFocus.removeListener(_onEmailFocus);
+    _passwordFocus.removeListener(_onPasswordFocus);
+    _scrollController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _loading.dispose();
+    _authService.dispose();
     super.dispose();
+  }
+
+  void _onEmailFocus() {
+    if (_emailFocus.hasFocus) _ensureVisible(_emailFieldKey);
+  }
+
+  void _onPasswordFocus() {
+    if (_passwordFocus.hasFocus) _ensureVisible(_passwordFieldKey);
+  }
+
+  void _ensureVisible(GlobalKey key) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = key.currentContext;
+      if (ctx == null || !mounted) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        alignment: 0.2,
+      );
+    });
   }
 
   void _toast(String message) => TarzFlashMessage.show(context, message);
@@ -50,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _submitLogin() async {
-    if (_isLoading) return;
+    if (_loading.value) return;
 
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -59,16 +97,16 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    FocusScope.of(context).unfocus();
+    _loading.value = true;
     try {
       await _authService.login(email: email, password: password);
       if (!mounted) return;
       try {
         await TarzWishlistController.instance.reload();
         await TarzCartController.instance.reload();
-      } catch (_) {
-        // Giriş uğurludur; səbət/seçilmişlər sinxronu sonra təkrarlanır.
-      }
+        await TarzOrdersController.instance.reload();
+      } catch (_) {}
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed(AppRoutes.home);
     } on ApiException catch (e) {
@@ -80,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (mounted) _toast('Gözlənilməz xəta: $e');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) _loading.value = false;
     }
   }
 
@@ -88,14 +126,18 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      // false: navbar klaviatura ilə yuxarı qalxmır.
       resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: KeyboardAwareScrollView(
+              child: SingleChildScrollView(
+                controller: _scrollController,
                 padding: const EdgeInsets.fromLTRB(_hMargin, 56, _hMargin, 16),
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -110,11 +152,54 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 28),
-                    _credentialsField(),
+                    KeyedSubtree(
+                      key: _emailFieldKey,
+                      child: _CredentialsBox(
+                        emailController: _emailController,
+                        passwordController: _passwordController,
+                        emailFocus: _emailFocus,
+                        passwordFocus: _passwordFocus,
+                        passwordFieldKey: _passwordFieldKey,
+                        onSubmit: _submitLogin,
+                      ),
+                    ),
                     const SizedBox(height: 10),
-                    _loginButton(),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: _loading,
+                      builder: (context, isLoading, _) {
+                        return SizedBox(
+                          width: double.infinity,
+                          height: 40,
+                          child: FilledButton(
+                            onPressed: isLoading ? null : _submitLogin,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _ink,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: const StadiumBorder(),
+                            ),
+                            child: isLoading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Daxil ol',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                          ),
+                        );
+                      },
+                    ),
                     const SizedBox(height: 16),
-                    _registerText(context),
+                    const _LoginRegisterLink(),
                     const SizedBox(height: 20),
                     _LoginSocialButton(
                       label: 'Google ilə daxil ol',
@@ -133,36 +218,90 @@ class _LoginScreenState extends State<LoginScreen> {
                       leading: RegisterSocialIcons.facebook(),
                       onPressed: () => _toast('Facebook ilə daxil ol'),
                     ),
-                    const SizedBox(height: 24),
+                    const KeyboardBottomSpacer(extra: 24),
                   ],
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(_hMargin, 0, _hMargin, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _bottomLink('Dəstək xidməti', () => _toast('Dəstək xidməti')),
-                  const SizedBox(height: 6),
-                  _bottomLink(
-                    'Bildiriş tənzimləmələri',
-                    () => _toast('Bildiriş tənzimləmələri'),
-                  ),
-                ],
+            HideWhenKeyboardOpen(
+              child: _LoginBottomChrome(
+                onToast: _toast,
+                onNavChanged: _onNavChanged,
               ),
-            ),
-            TarzBottomNavigation(
-              currentIndex: 4,
-              onChanged: _onNavChanged,
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _credentialsField() {
+class _LoginBottomChrome extends StatelessWidget {
+  const _LoginBottomChrome({
+    required this.onToast,
+    required this.onNavChanged,
+  });
+
+  final ValueChanged<String> onToast;
+  final ValueChanged<int> onNavChanged;
+
+  static const double _hMargin = 20;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(_hMargin, 0, _hMargin, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _BottomLink(
+                text: 'Dəstək xidməti',
+                onTap: () => onToast('Dəstək xidməti'),
+              ),
+              const SizedBox(height: 6),
+              _BottomLink(
+                text: 'Bildiriş tənzimləmələri',
+                onTap: () => onToast('Bildiriş tənzimləmələri'),
+              ),
+            ],
+          ),
+        ),
+        TarzBottomNavigation(
+          currentIndex: 4,
+          onChanged: onNavChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _CredentialsBox extends StatelessWidget {
+  const _CredentialsBox({
+    required this.emailController,
+    required this.passwordController,
+    required this.emailFocus,
+    required this.passwordFocus,
+    required this.passwordFieldKey,
+    required this.onSubmit,
+  });
+
+  final TextEditingController emailController;
+  final TextEditingController passwordController;
+  final FocusNode emailFocus;
+  final FocusNode passwordFocus;
+  final GlobalKey passwordFieldKey;
+  final VoidCallback onSubmit;
+
+  static const Color _ink = Color(0xFF2D2D2D);
+  static const Color _border = Color(0xFF909090);
+  static const Color _placeholder = Color(0xFF9E9E9E);
+
+  @override
+  Widget build(BuildContext context) {
     const fieldStyle = TextStyle(fontSize: 14, color: _ink);
     const hintStyle = TextStyle(fontSize: 13, color: _placeholder);
 
@@ -175,34 +314,47 @@ class _LoginScreenState extends State<LoginScreen> {
         children: [
           Expanded(
             child: TextField(
-              controller: _emailController,
+              controller: emailController,
+              focusNode: emailFocus,
               keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autocorrect: false,
+              enableSuggestions: false,
               style: fieldStyle,
+              onSubmitted: (_) => passwordFocus.requestFocus(),
               decoration: const InputDecoration(
                 hintText: 'Email və ya telefon',
                 hintStyle: hintStyle,
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 isDense: true,
               ),
             ),
           ),
           const Divider(height: 1, thickness: 1, color: _border),
           Expanded(
-            child: TextField(
-              controller: _passwordController,
-              obscureText: true,
-              style: fieldStyle,
-              decoration: const InputDecoration(
-                hintText: 'Şifrə',
-                hintStyle: hintStyle,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                isDense: true,
+            child: KeyedSubtree(
+              key: passwordFieldKey,
+              child: TextField(
+                controller: passwordController,
+                focusNode: passwordFocus,
+                obscureText: true,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => onSubmit(),
+                style: fieldStyle,
+                decoration: const InputDecoration(
+                  hintText: 'Şifrə',
+                  hintStyle: hintStyle,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  isDense: true,
+                ),
               ),
             ),
           ),
@@ -210,40 +362,56 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
 
-  Widget _loginButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 40,
-      child: FilledButton(
-        onPressed: _isLoading ? null : _submitLogin,
-        style: FilledButton.styleFrom(
-          backgroundColor: _ink,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shape: const StadiumBorder(),
+class _BottomLink extends StatelessWidget {
+  const _BottomLink({required this.text, required this.onTap});
+
+  final String text;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.grey.shade600,
+          decoration: TextDecoration.underline,
+          decorationColor: Colors.grey.shade600,
         ),
-        child: _isLoading
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : const Text(
-                'Daxil ol',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
       ),
     );
   }
+}
 
-  Widget _registerText(BuildContext context) {
+class _LoginRegisterLink extends StatefulWidget {
+  const _LoginRegisterLink();
+
+  @override
+  State<_LoginRegisterLink> createState() => _LoginRegisterLinkState();
+}
+
+class _LoginRegisterLinkState extends State<_LoginRegisterLink> {
+  late final TapGestureRecognizer _registerTap;
+
+  @override
+  void initState() {
+    super.initState();
+    _registerTap = TapGestureRecognizer()
+      ..onTap = () => Navigator.pushNamed(context, AppRoutes.register);
+  }
+
+  @override
+  void dispose() {
+    _registerTap.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Center(
       child: RichText(
         textAlign: TextAlign.center,
@@ -257,29 +425,13 @@ class _LoginScreenState extends State<LoginScreen> {
             TextSpan(
               text: 'Qeydiyyatdan keçin',
               style: const TextStyle(
-                color: _ink,
+                color: Color(0xFF2D2D2D),
                 decoration: TextDecoration.underline,
                 fontWeight: FontWeight.w500,
               ),
-              recognizer: TapGestureRecognizer()
-                ..onTap = () => Navigator.pushNamed(context, AppRoutes.register),
+              recognizer: _registerTap,
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _bottomLink(String text, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          color: Colors.grey.shade600,
-          decoration: TextDecoration.underline,
-          decorationColor: Colors.grey.shade600,
         ),
       ),
     );

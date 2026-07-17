@@ -43,7 +43,7 @@ class _TarzCatalogueScreenState extends State<TarzCatalogueScreen> {
   static const double _underlineGap = 6;
 
   final GlobalKey _listKey = GlobalKey();
-  final CategoryRepository _categoryRepo = CategoryRepository();
+  final CategoryRepository _categoryRepo = CategoryRepository.instance;
   late List<GlobalKey> _textKeys;
 
   List<PlpCategoryOption> _categories = const [];
@@ -71,12 +71,6 @@ class _TarzCatalogueScreenState extends State<TarzCatalogueScreen> {
     super.initState();
     _textKeys = [];
     _loadCategories();
-  }
-
-  @override
-  void dispose() {
-    _categoryRepo.dispose();
-    super.dispose();
   }
 
   Future<void> _loadCategories() async {
@@ -187,6 +181,7 @@ class _TarzCatalogueScreenState extends State<TarzCatalogueScreen> {
     }
 
     return SingleChildScrollView(
+      key: PageStorageKey<String>('catalogue_scroll_${widget.genderIndex}'),
       physics: const BouncingScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
       ),
@@ -240,6 +235,7 @@ class _TarzCatalogueScreenState extends State<TarzCatalogueScreen> {
     }
 
     return SingleChildScrollView(
+      key: PageStorageKey<String>('catalogue_kids_scroll'),
       physics: const BouncingScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
       ),

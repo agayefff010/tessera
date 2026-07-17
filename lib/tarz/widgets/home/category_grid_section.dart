@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/tarz_category_assets.dart';
 import '../../theme/tarz_colors.dart';
+import '../../utils/tarz_image_cache.dart';
 
 class HomeCategoryItem {
   const HomeCategoryItem({
@@ -127,27 +128,38 @@ class _CategoryImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageUrl = item.imageUrl;
-    if (imageUrl != null && imageUrl.isNotEmpty) {
-      return Image.network(
-        imageUrl,
-        fit: BoxFit.cover,
-        alignment: Alignment.center,
-        errorBuilder: (_, __, ___) => _placeholder(),
-      );
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cacheW = TarzImageCache.px(context, constraints.maxWidth);
+        final cacheH = TarzImageCache.px(context, constraints.maxHeight);
 
-    final imageAsset = item.imageAsset;
-    if (imageAsset != null && imageAsset.isNotEmpty) {
-      return Image.asset(
-        imageAsset,
-        fit: BoxFit.cover,
-        alignment: Alignment.center,
-        errorBuilder: (_, __, ___) => _placeholder(),
-      );
-    }
+        final imageUrl = item.imageUrl;
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          return Image.network(
+            imageUrl,
+            fit: BoxFit.cover,
+            alignment: Alignment.center,
+            cacheWidth: cacheW,
+            cacheHeight: cacheH,
+            errorBuilder: (_, __, ___) => _placeholder(),
+          );
+        }
 
-    return _placeholder();
+        final imageAsset = item.imageAsset;
+        if (imageAsset != null && imageAsset.isNotEmpty) {
+          return Image.asset(
+            imageAsset,
+            fit: BoxFit.cover,
+            alignment: Alignment.center,
+            cacheWidth: cacheW,
+            cacheHeight: cacheH,
+            errorBuilder: (_, __, ___) => _placeholder(),
+          );
+        }
+
+        return _placeholder();
+      },
+    );
   }
 
   Widget _placeholder() {

@@ -45,10 +45,14 @@ Future<AuthHttpResponse> postAuth(
   if (response.statusCode >= 200 && response.statusCode < 300) {
     final token = AuthTokenParser.fromHeaderMap(response.headers) ??
         AuthTokenParser.fromBody(data);
+    final refreshToken =
+        AuthTokenParser.refreshFromHeaderMap(response.headers) ??
+            AuthTokenParser.refreshFromBody(data);
     return AuthHttpResponse(
       statusCode: response.statusCode,
       data: data ?? <String, dynamic>{},
       token: token,
+      refreshToken: refreshToken,
     );
   }
 

@@ -18,14 +18,19 @@ class OrderStorage {
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
 
-  String? _memoryJson;
+  /// Sifarişlər istifadəçiyə görə ayrılır — hesablar arası sızma olmasın.
+  static String _keyFor(String? userId) =>
+      (userId == null || userId.isEmpty) ? _key : '${_key}_$userId';
 
-  Future<List<TarzOrder>> load() async {
+  final Map<String, String> _memoryJson = {};
+
+  Future<List<TarzOrder>> load({String? userId}) async {
+    final key = _keyFor(userId);
     String? raw;
     try {
-      raw = await _storage.read(key: _key);
+      raw = await _storage.read(key: key);
     } catch (_) {}
-    raw ??= _memoryJson;
+    raw ??= _memoryJson[key];
     if (raw == null || raw.isEmpty) return const [];
 
     try {
@@ -42,28 +47,37 @@ class OrderStorage {
     }
   }
 
-  Future<void> saveAll(List<TarzOrder> orders) async {
+  Future<void> saveAll(List<TarzOrder> orders, {String? userId}) async {
+    final key = _keyFor(userId);
     final sorted = List<TarzOrder>.from(orders)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final json = jsonEncode(sorted.map((o) => o.toJson()).toList());
     try {
-      await _storage.write(key: _key, value: json);
-      _memoryJson = null;
+      await _storage.write(key: key, value: json);
+      _memoryJson.remove(key);
     } catch (e) {
       if (kDebugMode) {
-        _memoryJson = json;
+        _memoryJson[key] = json;
       } else {
         rethrow;
       }
     }
   }
 
-  Future<void> addOrder(TarzOrder order) async {
-    final existing = await load();
+  Future<void> addOrder(TarzOrder order, {String? userId}) async {
+    final existing = await load(userId: userId);
     final withoutDup =
         existing.where((o) => o.id != order.id).toList(growable: true);
     withoutDup.insert(0, order);
-    await saveAll(withoutDup);
+    await saveAll(withoutDup, userId: userId);
+  }
+
+  Future<void> clear({String? userId}) async {
+    final key = _keyFor(userId);
+    try {
+      await _storage.delete(key: key);
+    } catch (_) {}
+    _memoryJson.remove(key);
   }
 
   static String generateLocalId() {

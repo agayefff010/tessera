@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../cart/tarz_price_utils.dart';
 import '../../models/tarz_cart_item.dart';
 import '../../theme/tarz_colors.dart';
+import '../../utils/tarz_image_cache.dart';
 
 /// Səbət məhsul sətri — Figma Cart layout.
 class TarzCartItemTile extends StatelessWidget {
@@ -36,6 +37,8 @@ class TarzCartItemTile extends StatelessWidget {
                     width: _imageWidth,
                     height: _imageHeight,
                     fit: BoxFit.cover,
+                    cacheWidth: TarzImageCache.px(context, _imageWidth),
+                    cacheHeight: TarzImageCache.px(context, _imageHeight),
                     errorBuilder: (_, __, ___) => _imagePlaceholder(),
                   )
                 : Image.asset(
@@ -43,6 +46,8 @@ class TarzCartItemTile extends StatelessWidget {
                     width: _imageWidth,
                     height: _imageHeight,
                     fit: BoxFit.cover,
+                    cacheWidth: TarzImageCache.px(context, _imageWidth),
+                    cacheHeight: TarzImageCache.px(context, _imageHeight),
                     errorBuilder: (_, __, ___) => _imagePlaceholder(),
                   ),
           ),

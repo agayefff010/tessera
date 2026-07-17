@@ -35,6 +35,11 @@ class TarzProductDetail {
     this.details,
     this.careInstructions,
     this.vendorName,
+    this.vendorSlug,
+    this.vendorDeliveryAvailable,
+    this.vendorAddress,
+    this.vendorOpenHours,
+    this.vendorStoreAddresses = const [],
     this.styleTag,
     this.season,
   });
@@ -53,6 +58,12 @@ class TarzProductDetail {
   final String? details;
   final String? careInstructions;
   final String? vendorName;
+  final String? vendorSlug;
+  /// Mağaza çatdırılma təklif edir?
+  final bool? vendorDeliveryAvailable;
+  final String? vendorAddress;
+  final String? vendorOpenHours;
+  final List<String> vendorStoreAddresses;
   final String? styleTag;
   final String? season;
 

@@ -43,7 +43,7 @@ class HomeGenderListingSection extends StatefulWidget {
 
 class _HomeGenderListingSectionState extends State<HomeGenderListingSection> {
   final _productRepo = ProductRepository();
-  final _categoryRepo = CategoryRepository();
+  final _categoryRepo = CategoryRepository.instance;
   final _wishlist = TarzWishlistController.instance;
   final _scrollController = ScrollController();
 
@@ -69,7 +69,6 @@ class _HomeGenderListingSectionState extends State<HomeGenderListingSection> {
   @override
   void initState() {
     super.initState();
-    _wishlist.addListener(_rebuild);
     _scrollController.addListener(_onScroll);
     _bootstrap();
   }
@@ -84,14 +83,10 @@ class _HomeGenderListingSectionState extends State<HomeGenderListingSection> {
 
   @override
   void dispose() {
-    _wishlist.removeListener(_rebuild);
     _scrollController.dispose();
     _productRepo.dispose();
-    _categoryRepo.dispose();
     super.dispose();
   }
-
-  void _rebuild() => setState(() {});
 
   Future<void> _bootstrap() async {
     setState(() {
@@ -397,7 +392,6 @@ class _HomeGenderListingSectionState extends State<HomeGenderListingSection> {
         final product = _products[index];
         return PlpProductCard(
           product: product,
-          isFavorite: _wishlist.contains(product.id),
           onTap: () => widget.onProductTap(product),
           onFavorite: () => _toggleFavorite(product),
         );

@@ -39,17 +39,13 @@ class _TarzCartScreenState extends State<TarzCartScreen> {
   void initState() {
     super.initState();
     _cart.ensureLoaded();
-    _cart.addListener(_rebuild);
   }
 
   @override
   void dispose() {
-    _cart.removeListener(_rebuild);
     _authService.dispose();
     super.dispose();
   }
-
-  void _rebuild() => setState(() {});
 
   void _toast(String message) => TarzFlashMessage.show(context, message);
 
@@ -79,7 +75,11 @@ class _TarzCartScreenState extends State<TarzCartScreen> {
     final loggedIn = await _authService.isLoggedIn();
     if (!loggedIn) {
       if (!mounted) return;
-      final action = await showTarzAuthRequiredDialog(context);
+      final action = await showTarzAuthRequiredDialog(
+        context,
+        message:
+            'Sifarişi rəsmiləşdirmək üçün daxil olun və ya qeydiyyatdan keçin.',
+      );
       if (!mounted || action == null) return;
       if (action == TarzAuthPromptAction.login) {
         await Navigator.of(context).pushNamed(AppRoutes.login);
@@ -119,10 +119,6 @@ class _TarzCartScreenState extends State<TarzCartScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final items = _cart.items;
-    final summary = _cart.buildSummary(includeGiftWrap: _giftWrapSelected);
-    final isEmpty = items.isEmpty;
-    final loading = _cart.isLoading && isEmpty;
     final canPop = Navigator.of(context).canPop();
 
     return Scaffold(
@@ -131,63 +127,58 @@ class _TarzCartScreenState extends State<TarzCartScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildHeader(canPop, _cart.itemCountLabel),
-            Expanded(
-              child: loading
-                  ? const Center(
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : isEmpty
-                      ? TarzCartEmptyState(onShop: _goHome)
-                      : RefreshIndicator(
-                          onRefresh: _cart.reload,
-                          child: SingleChildScrollView(
-                            physics: const AlwaysScrollableScrollPhysics(
-                              parent: BouncingScrollPhysics(),
-                            ),
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                const SizedBox(height: 8),
-                                ...items.map((item) {
-                                  return TarzCartItemTile(
-                                    item: item,
-                                    onFavorite: () async {
-                                      await TarzWishlistController.instance
-                                          .add(_previewFromItem(item));
-                                      _toast('Favorilərə köçürüldü');
-                                    },
-                                    onRemove: () async {
-                                      await _cart.removeItem(item.id);
-                                      _toast('Məhsul silindi');
-                                    },
-                                  );
-                                }),
-                                const SizedBox(height: 4),
-                                TarzCartSummarySection(
-                                  summary: summary,
-                                  giftWrapSelected: _giftWrapSelected,
-                                  onGiftWrapChanged: (v) =>
-                                      setState(() => _giftWrapSelected = v),
-                                ),
-                                TarzCartPromoSection(
-                                  expanded: _promoExpanded,
-                                  onToggle: () => setState(
-                                    () => _promoExpanded = !_promoExpanded,
-                                  ),
-                                  onApply: () =>
-                                      _toast('Promokod tətbiq edildi'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+            ListenableBuilder(
+              listenable: _cart,
+              builder: (context, _) =>
+                  _buildHeader(canPop, _cart.itemCountLabel),
             ),
-            if (!isEmpty && !loading)
-              TarzCartStickyCheckout(
-                onCheckout: _checkoutBusy ? null : _startCheckout,
+            Expanded(
+              child: ValueListenableBuilder<int>(
+                valueListenable: _cart.listRevision,
+                builder: (context, _, __) {
+                  final loading = _cart.isLoading && _cart.isEmpty;
+                  if (loading) {
+                    return const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    );
+                  }
+                  if (_cart.isEmpty) {
+                    return TarzCartEmptyState(onShop: _goHome);
+                  }
+                  return _CartFilledBody(
+                    cart: _cart,
+                    giftWrapSelected: _giftWrapSelected,
+                    promoExpanded: _promoExpanded,
+                    onGiftWrapChanged: (v) =>
+                        setState(() => _giftWrapSelected = v),
+                    onPromoToggle: () => setState(
+                      () => _promoExpanded = !_promoExpanded,
+                    ),
+                    onApplyPromo: () => _toast('Promokod tətbiq edildi'),
+                    onFavorite: (item) async {
+                      await TarzWishlistController.instance
+                          .add(_previewFromItem(item));
+                      _toast('Favorilərə köçürüldü');
+                    },
+                    onRemove: (item) async {
+                      await _cart.removeItem(item.id);
+                      _toast('Məhsul silindi');
+                    },
+                  );
+                },
               ),
+            ),
+            ListenableBuilder(
+              listenable: _cart,
+              builder: (context, _) {
+                if (_cart.isEmpty || (_cart.isLoading && _cart.isEmpty)) {
+                  return const SizedBox.shrink();
+                }
+                return TarzCartStickyCheckout(
+                  onCheckout: _checkoutBusy ? null : _startCheckout,
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -235,6 +226,78 @@ class _TarzCartScreenState extends State<TarzCartScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Keeps item rows scoped via [listRevision] + per-line listenables.
+class _CartFilledBody extends StatelessWidget {
+  const _CartFilledBody({
+    required this.cart,
+    required this.giftWrapSelected,
+    required this.promoExpanded,
+    required this.onGiftWrapChanged,
+    required this.onPromoToggle,
+    required this.onApplyPromo,
+    required this.onFavorite,
+    required this.onRemove,
+  });
+
+  final TarzCartController cart;
+  final bool giftWrapSelected;
+  final bool promoExpanded;
+  final ValueChanged<bool> onGiftWrapChanged;
+  final VoidCallback onPromoToggle;
+  final VoidCallback onApplyPromo;
+  final Future<void> Function(TarzCartItem item) onFavorite;
+  final Future<void> Function(TarzCartItem item) onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: cart.reload,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 8),
+            for (final id in cart.items.map((e) => e.id))
+              ValueListenableBuilder<TarzCartItem>(
+                key: ValueKey(id),
+                valueListenable: cart.lineListenable(id),
+                builder: (context, item, _) {
+                  return TarzCartItemTile(
+                    item: item,
+                    onFavorite: () => onFavorite(item),
+                    onRemove: () => onRemove(item),
+                  );
+                },
+              ),
+            const SizedBox(height: 4),
+            ListenableBuilder(
+              listenable: cart,
+              builder: (context, _) {
+                return TarzCartSummarySection(
+                  summary: cart.buildSummary(
+                    includeGiftWrap: giftWrapSelected,
+                  ),
+                  giftWrapSelected: giftWrapSelected,
+                  onGiftWrapChanged: onGiftWrapChanged,
+                );
+              },
+            ),
+            TarzCartPromoSection(
+              expanded: promoExpanded,
+              onToggle: onPromoToggle,
+              onApply: onApplyPromo,
+            ),
+          ],
+        ),
       ),
     );
   }

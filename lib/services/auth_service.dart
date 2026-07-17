@@ -58,12 +58,25 @@ class AuthService {
 
     final response = await postAuth(ApiConfig.registerPath, body: body);
 
-    final userJson = response.data['user'];
-    if (userJson is Map<String, dynamic> && response.token != null) {
-      return _saveAuthResponse(response);
+    // Production register: body-də token yoxdur, JWT Set-Cookie-də gəlir.
+    // Cookie oxunmasa və ya save uğursuz olsa — eyni credential ilə login.
+    try {
+      if (response.data['user'] is Map<String, dynamic> &&
+          response.token != null &&
+          response.token!.isNotEmpty) {
+        final saved = await _saveAuthResponse(response);
+        // Token həqiqətən işləyirmi — birbaşa yoxla.
+        try {
+          await fetchCurrentUser();
+          return saved;
+        } catch (_) {
+          await AuthStorage.instance.clear();
+        }
+      }
+    } catch (_) {
+      await AuthStorage.instance.clear();
     }
 
-    // Backend çox vaxt yalnız user qaytarır; token login-dən gəlir.
     return login(email: emailTrimmed, password: password);
   }
 
@@ -150,6 +163,7 @@ class AuthService {
     final result = AuthResult.fromApiResponse(
       response.data,
       token: response.token,
+      refreshToken: response.refreshToken,
     );
     await AuthStorage.instance.saveSession(result);
     return result;

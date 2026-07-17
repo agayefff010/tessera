@@ -5,11 +5,13 @@ class AuthHttpResponse {
     required this.statusCode,
     required this.data,
     this.token,
+    this.refreshToken,
   });
 
   final int statusCode;
   final Map<String, dynamic> data;
   final String? token;
+  final String? refreshToken;
 }
 
 /// Login/register — Set-Cookie token oxumaq üçün platform xüsusi klient.

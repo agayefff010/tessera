@@ -56,14 +56,16 @@ class AuthResult {
   const AuthResult({
     required this.token,
     required this.user,
+    this.refreshToken,
   });
 
   factory AuthResult.fromApiResponse(
     Map<String, dynamic> json, {
     String? token,
+    String? refreshToken,
   }) {
-    final userJson = json['user'];
-    if (userJson is! Map<String, dynamic>) {
+    final userJson = _extractUser(json);
+    if (userJson == null) {
       throw const ApiParseException('Cavabda istifadəçi məlumatı yoxdur');
     }
 
@@ -78,13 +80,31 @@ class AuthResult {
       );
     }
 
+    final resolvedRefresh =
+        refreshToken ?? AuthTokenParser.refreshFromBody(json);
+
     return AuthResult(
       token: resolvedToken,
+      refreshToken: resolvedRefresh,
       user: AuthUser.fromJson(userJson),
     );
   }
 
+  static Map<String, dynamic>? _extractUser(Map<String, dynamic> json) {
+    final direct = json['user'];
+    if (direct is Map<String, dynamic>) return direct;
+
+    final data = json['data'];
+    if (data is Map<String, dynamic>) {
+      final nested = data['user'];
+      if (nested is Map<String, dynamic>) return nested;
+      if (data.containsKey('email') || data.containsKey('_id')) return data;
+    }
+    return null;
+  }
+
   final String token;
+  final String? refreshToken;
   final AuthUser user;
 }
 

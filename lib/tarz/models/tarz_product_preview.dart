@@ -17,6 +17,7 @@ class TarzProductPreview {
     this.categoryId,
     this.subcategoryId,
     this.genderId,
+    this.slug,
   });
 
   final String id;
@@ -41,4 +42,6 @@ class TarzProductPreview {
   final String? subcategoryId;
   /// Backend `gender` ID-si.
   final String? genderId;
+  /// Backend `slug` — outfit generate üçün.
+  final String? slug;
 }

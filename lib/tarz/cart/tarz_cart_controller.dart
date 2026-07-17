@@ -21,6 +21,9 @@ class TarzCartController extends ChangeNotifier {
   final CartService _service = CartService();
 
   final List<TarzCartItem> _items = [];
+  final Map<String, ValueNotifier<TarzCartItem>> _lineNotifiers = {};
+  final ValueNotifier<int> listRevision = ValueNotifier<int>(0);
+
   CartServerTotals? _serverTotals;
 
   bool _initialized = false;
@@ -41,6 +44,44 @@ class TarzCartController extends ChangeNotifier {
     return '$n məhsul';
   }
 
+  /// Per-line item — quantity edits rebuild only this line.
+  ValueListenable<TarzCartItem> lineListenable(String id) {
+    final existing = _lineNotifiers[id];
+    if (existing != null) return existing;
+
+    final item = _items.firstWhere((e) => e.id == id);
+    final notifier = ValueNotifier<TarzCartItem>(item);
+    _lineNotifiers[id] = notifier;
+    return notifier;
+  }
+
+  void _bumpList() {
+    listRevision.value++;
+  }
+
+  void _syncLine(TarzCartItem item) {
+    final existing = _lineNotifiers[item.id];
+    if (existing != null) {
+      existing.value = item;
+    } else {
+      _lineNotifiers[item.id] = ValueNotifier<TarzCartItem>(item);
+    }
+  }
+
+  void _dropLine(String id) {
+    _lineNotifiers.remove(id)?.dispose();
+  }
+
+  void _resyncAllLines() {
+    final ids = _items.map((e) => e.id).toSet();
+    for (final id in _lineNotifiers.keys.toList()) {
+      if (!ids.contains(id)) _dropLine(id);
+    }
+    for (final item in _items) {
+      _syncLine(item);
+    }
+  }
+
   Future<void> ensureLoaded() async {
     if (_initialized) return;
     await reload();
@@ -48,6 +89,7 @@ class TarzCartController extends ChangeNotifier {
 
   Future<void> reload() async {
     _loading = true;
+    _bumpList();
     notifyListeners();
 
     try {
@@ -67,6 +109,8 @@ class TarzCartController extends ChangeNotifier {
       }
 
       _initialized = true;
+      _resyncAllLines();
+      _bumpList();
     } finally {
       _loading = false;
       notifyListeners();
@@ -100,26 +144,27 @@ class TarzCartController extends ChangeNotifier {
       return;
     }
 
-    _items.add(
-      TarzCartItem(
-        id: lineId,
-        productId: productId,
-        title: product.title,
-        brand: product.brand ?? 'Tessera',
-        priceLabel: product.priceLabel,
-        imageAsset: product.imageAsset ?? TarzProductAssets.nikeV5Rnr,
-        imageUrl: product.imageUrl,
-        originalPriceLabel: product.originalPriceLabel,
-        badgeLabel: product.badgeLabel,
-        quantity: 1,
-        priceManat: price,
-        originalPriceManat: original,
-        size: size,
-        color: color,
-        vendor: vendor,
-      ),
+    final created = TarzCartItem(
+      id: lineId,
+      productId: productId,
+      title: product.title,
+      brand: product.brand ?? 'Tessera',
+      priceLabel: product.priceLabel,
+      imageAsset: product.imageAsset ?? TarzProductAssets.nikeV5Rnr,
+      imageUrl: product.imageUrl,
+      originalPriceLabel: product.originalPriceLabel,
+      badgeLabel: product.badgeLabel,
+      quantity: 1,
+      priceManat: price,
+      originalPriceManat: original,
+      size: size,
+      color: color,
+      vendor: vendor,
     );
+    _items.add(created);
     _serverTotals = null;
+    _syncLine(created);
+    _bumpList();
     notifyListeners();
 
     await _persistLocal();
@@ -132,7 +177,7 @@ class TarzCartController extends ChangeNotifier {
     if (index < 0) return;
 
     final existing = _items[index];
-    _items[index] = TarzCartItem(
+    final updated = TarzCartItem(
       id: existing.id,
       productId: existing.productId,
       title: existing.title,
@@ -149,7 +194,9 @@ class TarzCartController extends ChangeNotifier {
       color: existing.color,
       vendor: existing.vendor,
     );
+    _items[index] = updated;
     _serverTotals = null;
+    _syncLine(updated);
     notifyListeners();
 
     await _persistLocal();
@@ -188,6 +235,8 @@ class TarzCartController extends ChangeNotifier {
 
     _items.removeAt(index);
     _serverTotals = null;
+    _dropLine(id);
+    _bumpList();
     notifyListeners();
 
     await _persistLocal();
@@ -202,6 +251,10 @@ class TarzCartController extends ChangeNotifier {
   Future<void> clear() async {
     _items.clear();
     _serverTotals = null;
+    for (final id in _lineNotifiers.keys.toList()) {
+      _dropLine(id);
+    }
+    _bumpList();
     notifyListeners();
 
     await _storage.clear();
@@ -330,6 +383,8 @@ class TarzCartController extends ChangeNotifier {
       ..addAll(remote.items);
     _serverTotals = remote.totals;
     await _storage.save(_items);
+    _resyncAllLines();
+    _bumpList();
     notifyListeners();
   }
 
@@ -337,6 +392,10 @@ class TarzCartController extends ChangeNotifier {
   void resetForTest() {
     _items.clear();
     _serverTotals = null;
+    for (final id in _lineNotifiers.keys.toList()) {
+      _dropLine(id);
+    }
+    listRevision.value = 0;
     _initialized = false;
     _loading = false;
   }

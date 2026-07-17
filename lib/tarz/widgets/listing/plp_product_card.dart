@@ -2,20 +2,24 @@ import 'package:flutter/material.dart';
 
 import '../../models/tarz_product_preview.dart';
 import '../../theme/tarz_colors.dart';
+import '../../utils/tarz_image_cache.dart';
+import '../../wishlist/tarz_wishlist_controller.dart';
 
 /// PLP məhsul kartı — 4:5 şəkil, reytinq, brend, qiymət, endirim.
 class PlpProductCard extends StatelessWidget {
   const PlpProductCard({
     super.key,
     required this.product,
-    required this.isFavorite,
+    this.isFavorite,
     this.onTap,
     this.onFavorite,
     this.onLongPress,
   });
 
   final TarzProductPreview product;
-  final bool isFavorite;
+
+  /// Optional static override. When null, heart listens per-product.
+  final bool? isFavorite;
   final VoidCallback? onTap;
   final VoidCallback? onFavorite;
   final VoidCallback? onLongPress;
@@ -42,7 +46,13 @@ class PlpProductCard extends StatelessWidget {
         onLongPress: onLongPress,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final imageHeight = constraints.maxWidth * 5 / 4;
+            // Mətn bloku üçün yer saxla — dar kartlarda bottom overflow olmasın.
+            const infoReserve = 130.0;
+            final idealImage = constraints.maxWidth * 5 / 4;
+            final maxImage =
+                (constraints.maxHeight - infoReserve).clamp(80.0, idealImage);
+            final imageHeight =
+                idealImage > maxImage ? maxImage : idealImage;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -53,7 +63,14 @@ class PlpProductCard extends StatelessWidget {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      _ProductImage(product: product),
+                      _ProductImage(
+                        product: product,
+                        cacheWidth: TarzImageCache.px(
+                          context,
+                          constraints.maxWidth,
+                        ),
+                        cacheHeight: TarzImageCache.px(context, imageHeight),
+                      ),
                       Positioned(
                         top: 8,
                         right: 8,
@@ -66,13 +83,9 @@ class PlpProductCard extends StatelessWidget {
                             child: SizedBox(
                               width: 36,
                               height: 36,
-                              child: Icon(
-                                isFavorite
-                                    ? Icons.favorite_rounded
-                                    : Icons.favorite_border_rounded,
-                                size: 20,
-                                color:
-                                    isFavorite ? _discountRed : TarzColors.ink,
+                              child: _FavoriteIcon(
+                                productId: product.id,
+                                isFavorite: isFavorite,
                               ),
                             ),
                           ),
@@ -111,19 +124,16 @@ class PlpProductCard extends StatelessWidget {
                           ),
                         ],
                         const SizedBox(height: 2),
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.topLeft,
-                            child: Text(
-                              product.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: TarzColors.ink,
-                                height: 1.25,
-                              ),
+                        Flexible(
+                          child: Text(
+                            product.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: TarzColors.ink,
+                              height: 1.25,
                             ),
                           ),
                         ),
@@ -217,9 +227,15 @@ class PlpProductCard extends StatelessWidget {
 }
 
 class _ProductImage extends StatelessWidget {
-  const _ProductImage({required this.product});
+  const _ProductImage({
+    required this.product,
+    required this.cacheWidth,
+    required this.cacheHeight,
+  });
 
   final TarzProductPreview product;
+  final int cacheWidth;
+  final int cacheHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -227,6 +243,8 @@ class _ProductImage extends StatelessWidget {
       return Image.asset(
         product.imageAsset!,
         fit: BoxFit.cover,
+        cacheWidth: cacheWidth,
+        cacheHeight: cacheHeight,
         errorBuilder: (_, __, ___) => _fallback(),
       );
     }
@@ -234,6 +252,8 @@ class _ProductImage extends StatelessWidget {
       return Image.network(
         product.imageUrl!,
         fit: BoxFit.cover,
+        cacheWidth: cacheWidth,
+        cacheHeight: cacheHeight,
         errorBuilder: (_, __, ___) => _fallback(),
       );
     }
@@ -246,6 +266,37 @@ class _ProductImage extends StatelessWidget {
       child: Center(
         child: Icon(Icons.checkroom_rounded, size: 40, color: Colors.black26),
       ),
+    );
+  }
+}
+
+class _FavoriteIcon extends StatelessWidget {
+  const _FavoriteIcon({
+    required this.productId,
+    this.isFavorite,
+  });
+
+  final String productId;
+  final bool? isFavorite;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isFavorite != null) {
+      return _icon(isFavorite!);
+    }
+
+    return ValueListenableBuilder<bool>(
+      valueListenable:
+          TarzWishlistController.instance.favoriteListenable(productId),
+      builder: (context, favorite, _) => _icon(favorite),
+    );
+  }
+
+  Widget _icon(bool favorite) {
+    return Icon(
+      favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+      size: 20,
+      color: favorite ? PlpProductCard._discountRed : TarzColors.ink,
     );
   }
 }

@@ -9,4 +9,8 @@ abstract final class TarzBannerAssets {
   static const String aiKombinlerBanner = 'assets/banners/ai_kombinler_banner.png';
   static const String brandsYerli = 'assets/banners/brands_yerli.png';
   static const String brandsQlobal = 'assets/banners/brands_qlobal.jpg';
+
+  /// Ana bannerin altındakı lokal promo şəkillər.
+  static const String homeWinter = 'assets/banners/home_winter.png';
+  static const String homeSport = 'assets/banners/home_sport.png';
 }

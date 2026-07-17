@@ -25,7 +25,7 @@ class TarzHomeDrawer extends StatefulWidget {
 }
 
 class _TarzHomeDrawerState extends State<TarzHomeDrawer> {
-  final _categoryRepo = CategoryRepository();
+  final _categoryRepo = CategoryRepository.instance;
   List<PlpCategoryOption> _categories = const [];
   bool _loading = true;
 
@@ -41,12 +41,6 @@ class _TarzHomeDrawerState extends State<TarzHomeDrawer> {
     if (oldWidget.selectedGenderIndex != widget.selectedGenderIndex) {
       _loadCategories();
     }
-  }
-
-  @override
-  void dispose() {
-    _categoryRepo.dispose();
-    super.dispose();
   }
 
   Future<void> _loadCategories() async {

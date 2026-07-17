@@ -4,6 +4,7 @@ import '../models/tarz_product_preview.dart';
 import '../theme/tarz_colors.dart';
 import '../theme/tarz_spacing.dart';
 import '../theme/tarz_text_styles.dart';
+import '../utils/tarz_image_cache.dart';
 
 /// Ana səhifə «Trend» tipli horizontal məhsul bloku + «Hamısını göstər».
 class TarzHomeCarouselSection extends StatelessWidget {
@@ -240,21 +241,32 @@ class _CarouselImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (product.imageAsset != null && product.imageAsset!.isNotEmpty) {
-      return Image.asset(
-        product.imageAsset!,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _fallback(),
-      );
-    }
-    if (product.imageUrl != null && product.imageUrl!.isNotEmpty) {
-      return Image.network(
-        product.imageUrl!,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _fallback(),
-      );
-    }
-    return _fallback();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cacheW = TarzImageCache.px(context, constraints.maxWidth);
+        final cacheH = TarzImageCache.px(context, constraints.maxHeight);
+
+        if (product.imageAsset != null && product.imageAsset!.isNotEmpty) {
+          return Image.asset(
+            product.imageAsset!,
+            fit: BoxFit.cover,
+            cacheWidth: cacheW,
+            cacheHeight: cacheH,
+            errorBuilder: (_, __, ___) => _fallback(),
+          );
+        }
+        if (product.imageUrl != null && product.imageUrl!.isNotEmpty) {
+          return Image.network(
+            product.imageUrl!,
+            fit: BoxFit.cover,
+            cacheWidth: cacheW,
+            cacheHeight: cacheH,
+            errorBuilder: (_, __, ___) => _fallback(),
+          );
+        }
+        return _fallback();
+      },
+    );
   }
 
   Widget _fallback() {

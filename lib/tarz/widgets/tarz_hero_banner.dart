@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/tarz_colors.dart';
 import '../theme/tarz_spacing.dart';
 import '../theme/tarz_text_styles.dart';
+import '../utils/tarz_image_cache.dart';
 
 class TarzHeroBanner extends StatelessWidget {
   const TarzHeroBanner({
@@ -37,10 +38,18 @@ class TarzHeroBanner extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               if (imageUrl != null)
-                Image.network(
-                  imageUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const _HeroFallback(),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    return Image.network(
+                      imageUrl!,
+                      fit: BoxFit.cover,
+                      cacheWidth:
+                          TarzImageCache.px(context, constraints.maxWidth),
+                      cacheHeight:
+                          TarzImageCache.px(context, constraints.maxHeight),
+                      errorBuilder: (_, __, ___) => const _HeroFallback(),
+                    );
+                  },
                 )
               else
                 const _HeroFallback(),

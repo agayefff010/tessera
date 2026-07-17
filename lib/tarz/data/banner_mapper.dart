@@ -1,6 +1,6 @@
 import '../models/tarz_home_banner.dart';
 
-/// Backend banner JSON → UI modeli.
+/// Backend advertisement / banner JSON → UI modeli.
 abstract final class BannerMapper {
   static List<TarzHomeBanner> listFromResponse(Map<String, dynamic> body) {
     final raw = body['data'] ?? body['banners'] ?? body['items'];
@@ -8,12 +8,12 @@ abstract final class BannerMapper {
 
     final banners = <TarzHomeBanner>[];
     for (final item in raw) {
-      if (item is! Map<String, dynamic>) continue;
-      final banner = fromJson(item);
+      final map = _asMap(item);
+      if (map == null) continue;
+      final banner = fromJson(map);
       if (banner != null) banners.add(banner);
     }
 
-    banners.sort((a, b) => a.id.compareTo(b.id));
     return banners;
   }
 
@@ -23,6 +23,11 @@ abstract final class BannerMapper {
 
     if (!_isActive(json)) return null;
 
+    final vendor = _asMap(json['vendorId']);
+    final vendorName = vendor?['name']?.toString();
+    final vendorId = vendor?['_id']?.toString() ?? vendor?['id']?.toString();
+    final vendorSlug = vendor?['slug']?.toString();
+
     final id = json['_id']?.toString() ??
         json['id']?.toString() ??
         imageUrl;
@@ -30,9 +35,19 @@ abstract final class BannerMapper {
     return TarzHomeBanner(
       id: id,
       imageUrl: imageUrl,
-      title: json['title']?.toString() ?? json['name']?.toString(),
+      title: json['title']?.toString() ??
+          json['name']?.toString() ??
+          vendorName,
       link: json['link']?.toString() ?? json['url']?.toString(),
+      vendorId: vendorId,
+      vendorSlug: vendorSlug,
     );
+  }
+
+  static Map<String, dynamic>? _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return null;
   }
 
   static String? _imageUrl(Map<String, dynamic> json) {
@@ -53,6 +68,10 @@ abstract final class BannerMapper {
   }
 
   static bool _isActive(Map<String, dynamic> json) {
+    final status = json['status']?.toString().toLowerCase();
+    if (status != null && status.isNotEmpty) {
+      return status == 'active';
+    }
     final active = json['isActive'] ?? json['active'] ?? json['enabled'];
     if (active is bool) return active;
     if (active is num) return active != 0;

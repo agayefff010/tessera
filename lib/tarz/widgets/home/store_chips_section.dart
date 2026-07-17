@@ -4,7 +4,7 @@ import '../../models/tarz_store_preview.dart';
 import '../../theme/tarz_colors.dart';
 import '../../theme/tarz_home_layout.dart';
 
-/// «Mağazalar» — 2 sıralı üfüqi scroll grid (Figma).
+/// «Mağazalar» — 2 sıralı üfüqi scroll grid; kartlarda yalnız mağaza adı.
 class StoreChipsSection extends StatelessWidget {
   const StoreChipsSection({
     super.key,
@@ -80,7 +80,6 @@ class StoreChipsSection extends StatelessWidget {
     return columns;
   }
 
-  /// TODO: API-dən mağaza siyahısı ilə əvəz et.
   static List<TarzStorePreview> mockStores() => const [
         TarzStorePreview(id: 'sterns', name: 'STERNS'),
         TarzStorePreview(id: 'fabiani', name: 'FABIANI'),
@@ -156,63 +155,23 @@ class _StoreCard extends StatelessWidget {
             ),
           ),
           clipBehavior: Clip.antiAlias,
-          child: _StoreLogo(store: store),
-        ),
-      ),
-    );
-  }
-}
-
-class _StoreLogo extends StatelessWidget {
-  const _StoreLogo({required this.store});
-
-  final TarzStorePreview store;
-
-  @override
-  Widget build(BuildContext context) {
-    final logoUrl = store.logoUrl;
-    if (logoUrl != null && logoUrl.isNotEmpty) {
-      return Image.network(
-        logoUrl,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _StoreLabel(name: store.name),
-      );
-    }
-
-    final logoAsset = store.logoAsset;
-    if (logoAsset != null && logoAsset.isNotEmpty) {
-      return Image.asset(
-        logoAsset,
-        fit: BoxFit.fill,
-        errorBuilder: (_, __, ___) => _StoreLabel(name: store.name),
-      );
-    }
-
-    return _StoreLabel(name: store.name);
-  }
-}
-
-class _StoreLabel extends StatelessWidget {
-  const _StoreLabel({required this.name});
-
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Text(
-          name,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: TarzHomeLayout.storeCardLabelColor,
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.4,
-            height: 1.2,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                store.name,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: TarzHomeLayout.storeCardLabelColor,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.4,
+                  height: 1.2,
+                ),
+              ),
+            ),
           ),
         ),
       ),

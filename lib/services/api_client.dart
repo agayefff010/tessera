@@ -1,7 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-
 import '../config/api_config.dart';
 import 'api_exception.dart';
 
@@ -20,6 +20,21 @@ class ApiClient {
   ApiClient({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;
+
+  Never _networkError(Object error) {
+    if (error is TimeoutException) {
+      throw const ApiException('Server cavab vermədi. Yenidən cəhd edin.');
+    }
+    if (error is http.ClientException) {
+      final msg = error.message.trim();
+      if (msg.isNotEmpty) {
+        throw ApiException('Şəbəkə xətası: $msg');
+      }
+    }
+    throw const ApiException(
+      'Şəbəkə xətası. İnternet bağlantınızı yoxlayın.',
+    );
+  }
 
   Future<Map<String, dynamic>> get(
     String path, {
@@ -41,10 +56,8 @@ class ApiClient {
       response = await _client
           .get(uri, headers: headers)
           .timeout(const Duration(seconds: 30));
-    } on Exception {
-      throw const ApiException(
-        'Şəbəkə xətası. İnternet bağlantınızı yoxlayın.',
-      );
+    } on Exception catch (e) {
+      _networkError(e);
     }
 
     Map<String, dynamic>? data;
@@ -83,10 +96,8 @@ class ApiClient {
       response = await _client
           .delete(uri, headers: headers)
           .timeout(const Duration(seconds: 30));
-    } on Exception {
-      throw const ApiException(
-        'Şəbəkə xətası. İnternet bağlantınızı yoxlayın.',
-      );
+    } on Exception catch (e) {
+      _networkError(e);
     }
 
     Map<String, dynamic>? data;
@@ -127,10 +138,8 @@ class ApiClient {
       response = await _client
           .put(uri, headers: headers, body: jsonEncode(body))
           .timeout(const Duration(seconds: 30));
-    } on Exception {
-      throw const ApiException(
-        'Şəbəkə xətası. İnternet bağlantınızı yoxlayın.',
-      );
+    } on Exception catch (e) {
+      _networkError(e);
     }
 
     Map<String, dynamic>? data;
@@ -171,11 +180,57 @@ class ApiClient {
       response = await _client
           .patch(uri, headers: headers, body: jsonEncode(body))
           .timeout(const Duration(seconds: 30));
-    } on Exception {
-      throw const ApiException(
-        'Şəbəkə xətası. İnternet bağlantınızı yoxlayın.',
-      );
+    } on Exception catch (e) {
+      _networkError(e);
     }
+
+    Map<String, dynamic>? data;
+    if (response.body.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          data = decoded;
+        }
+      } catch (_) {}
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return data ?? <String, dynamic>{};
+    }
+
+    final message = _extractMessage(data) ??
+        'Server xətası (${response.statusCode})';
+    throw ApiException(message, statusCode: response.statusCode);
+  }
+
+  /// Multipart POST — məs. rəy şəkilləri.
+  Future<Map<String, dynamic>> postMultipart(
+    String path, {
+    Map<String, String>? fields,
+    List<http.MultipartFile>? files,
+    String? bearerToken,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$path');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers['Accept'] = 'application/json';
+    if (bearerToken != null && bearerToken.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $bearerToken';
+    }
+    if (fields != null) {
+      request.fields.addAll(fields);
+    }
+    if (files != null && files.isNotEmpty) {
+      request.files.addAll(files);
+    }
+
+    http.StreamedResponse streamed;
+    try {
+      streamed = await _client.send(request).timeout(const Duration(seconds: 90));
+    } on Exception catch (e) {
+      _networkError(e);
+    }
+
+    final response = await http.Response.fromStream(streamed);
 
     Map<String, dynamic>? data;
     if (response.body.isNotEmpty) {
@@ -215,10 +270,8 @@ class ApiClient {
       response = await _client
           .post(uri, headers: headers, body: jsonEncode(body))
           .timeout(const Duration(seconds: 30));
-    } on Exception {
-      throw const ApiException(
-        'Şəbəkə xətası. İnternet bağlantınızı yoxlayın.',
-      );
+    } on Exception catch (e) {
+      _networkError(e);
     }
 
     Map<String, dynamic>? data;

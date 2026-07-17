@@ -61,6 +61,8 @@ class TarzOrder {
     required this.totalManat,
     required this.itemCount,
     required this.createdAt,
+    this.userId,
+    this.paymentStatus,
     this.address,
     this.postalCode,
     this.phone,
@@ -73,6 +75,8 @@ class TarzOrder {
   final double totalManat;
   final int itemCount;
   final DateTime createdAt;
+  final String? userId;
+  final String? paymentStatus;
   final String? address;
   final String? postalCode;
   final String? phone;
@@ -90,6 +94,8 @@ class TarzOrder {
         'totalManat': totalManat,
         'itemCount': itemCount,
         'createdAt': createdAt.toIso8601String(),
+        'userId': userId,
+        'paymentStatus': paymentStatus,
         'address': address,
         'postalCode': postalCode,
         'phone': phone,
@@ -111,6 +117,8 @@ class TarzOrder {
       itemCount: (json['itemCount'] as num?)?.toInt() ?? 0,
       createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
           DateTime.now(),
+      userId: json['userId']?.toString(),
+      paymentStatus: json['paymentStatus']?.toString(),
       address: json['address']?.toString(),
       postalCode: json['postalCode']?.toString(),
       phone: json['phone']?.toString(),

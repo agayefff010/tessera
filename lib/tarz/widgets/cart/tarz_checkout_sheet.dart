@@ -5,16 +5,20 @@ import '../../theme/tarz_colors.dart';
 
 enum TarzAuthPromptAction { login, register }
 
-/// Qonaq istifadəçi sifariş təsdiqi — daxil ol / qeydiyyat.
-Future<TarzAuthPromptAction?> showTarzAuthRequiredDialog(BuildContext context) {
+/// Qonaq istifadəçi — daxil ol / qeydiyyat.
+Future<TarzAuthPromptAction?> showTarzAuthRequiredDialog(
+  BuildContext context, {
+  String message =
+      'Davam etmək üçün daxil olun və ya qeydiyyatdan keçin.',
+}) {
   return showDialog<TarzAuthPromptAction>(
     context: context,
     builder: (context) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: const Text('Hesab lazımdır'),
-      content: const Text(
-        'Sifarişi rəsmiləşdirmək üçün daxil olun və ya qeydiyyatdan keçin.',
-        style: TextStyle(fontSize: 14, height: 1.45),
+      content: Text(
+        message,
+        style: const TextStyle(fontSize: 14, height: 1.45),
       ),
       actionsAlignment: MainAxisAlignment.end,
       actions: [

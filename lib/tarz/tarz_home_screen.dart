@@ -17,6 +17,7 @@ import 'widgets/home/category_grid_section.dart';
 import 'widgets/home/home_gender_listing_section.dart';
 import 'widgets/home/gender_segmented_tabs.dart';
 import 'widgets/home/hero_collage_banner.dart';
+import 'widgets/home/home_promo_banners_section.dart';
 import 'widgets/home/home_search_header.dart';
 import 'widgets/home/new_products_section.dart';
 import 'widgets/home/store_chips_section.dart';
@@ -29,7 +30,7 @@ import 'widgets/tarz_bottom_navigation.dart';
 import 'widgets/tarz_flash_message.dart';
 import 'widgets/tarz_home_drawer.dart';
 
-/// Tessera əsas (Main) ekran — skrinşot dizaynına uyğun.
+
 class TarzHomeScreen extends StatefulWidget {
   const TarzHomeScreen({super.key, this.initialNavIndex});
 
@@ -48,9 +49,14 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
   int _catalogueCategoryIndex = 0;
   late int _navIndex;
 
+  /// Lazy-created tabs stay in [IndexedStack] so revisiting does not remount.
+  final Set<int> _mountedTabs = <int>{};
+
   bool _homeLoading = true;
   String? _homeError;
   List<TarzHomeBanner> _homeBanners = const [];
+  List<TarzHomeBanner> _sideTopBanners = const [];
+  List<TarzHomeBanner> _sideBottomBanners = const [];
   List<TarzProductPreview> _newProducts = const [];
   List<TarzProductPreview> _discountProducts = const [];
   List<HomeCategoryItem> _homeCategories = CategoryGridSection.mockCategories();
@@ -60,6 +66,7 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
   void initState() {
     super.initState();
     _navIndex = widget.initialNavIndex ?? 2;
+    _mountedTabs.add(_navIndex);
     _loadHomeData();
   }
 
@@ -75,54 +82,55 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
       _homeError = null;
     });
 
-    var banners = const <TarzHomeBanner>[];
-    var newProducts = const <TarzProductPreview>[];
-    var discountProducts = const <TarzProductPreview>[];
-    var categories = CategoryGridSection.mockCategories();
-    var stores = StoreChipsSection.mockStores();
     String? loadError;
 
-    try {
-      banners = await _homeRepo.fetchHomeBanners();
-    } catch (_) {
-      // Banner uğursuz olsa da məhsullar göstərilməlidir.
+    Future<T> guard<T>(Future<T> future, T fallback, {bool recordError = false}) async {
+      try {
+        return await future;
+      } on ApiException catch (e) {
+        if (recordError) loadError ??= e.message;
+        return fallback;
+      } catch (_) {
+        if (recordError) loadError ??= 'Məlumat yüklənmədi';
+        return fallback;
+      }
     }
 
-    try {
-      newProducts = await _homeRepo.fetchNewProducts(limit: 2);
-    } on ApiException catch (e) {
-      loadError = e.message;
-      newProducts = TarzMockCatalog.homeNewProductsGrid();
-    } catch (_) {
-      loadError ??= 'Məlumat yüklənmədi';
-      newProducts = TarzMockCatalog.homeNewProductsGrid();
-    }
-
-    try {
-      discountProducts = await _homeRepo.fetchDiscountProducts(limit: 2);
-    } on ApiException catch (e) {
-      loadError ??= e.message;
-      discountProducts = TarzMockCatalog.homeDiscountProductsGrid();
-    } catch (_) {
-      loadError ??= 'Məlumat yüklənmədi';
-      discountProducts = TarzMockCatalog.homeDiscountProductsGrid();
-    }
-
-    try {
-      categories = await _homeRepo.fetchHomeCategories(0);
-    } catch (_) {}
-
-    try {
-      stores = await _homeRepo.fetchStores(limit: 12);
-    } catch (_) {}
+    final results = await Future.wait([
+      guard(
+        _homeRepo.fetchHomeAdvertisements(),
+        const HomeAdvertisements(),
+      ),
+      guard(
+        _homeRepo.fetchNewProducts(limit: 2),
+        TarzMockCatalog.homeNewProductsGrid(),
+        recordError: true,
+      ),
+      guard(
+        _homeRepo.fetchDiscountProducts(limit: 2),
+        TarzMockCatalog.homeDiscountProductsGrid(),
+        recordError: true,
+      ),
+      guard(
+        _homeRepo.fetchHomeCategories(0),
+        CategoryGridSection.mockCategories(),
+      ),
+      guard(
+        _homeRepo.fetchStores(limit: 12),
+        StoreChipsSection.mockStores(),
+      ),
+    ]);
 
     if (!mounted) return;
+    final ads = results[0] as HomeAdvertisements;
     setState(() {
-      _homeBanners = banners;
-      _newProducts = newProducts;
-      _discountProducts = discountProducts;
-      _homeCategories = categories;
-      _stores = stores;
+      _homeBanners = ads.mainBanner;
+      _sideTopBanners = ads.sideTop;
+      _sideBottomBanners = ads.sideBottom;
+      _newProducts = results[1] as List<TarzProductPreview>;
+      _discountProducts = results[2] as List<TarzProductPreview>;
+      _homeCategories = results[3] as List<HomeCategoryItem>;
+      _stores = results[4] as List<TarzStorePreview>;
       _homeLoading = false;
       _homeError = loadError;
     });
@@ -179,6 +187,27 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
         product: product,
         similarProducts: TarzMockCatalog.homeNewProductsGrid(),
       ),
+    );
+  }
+
+  void _openVendorStore(TarzStorePreview store) {
+    final slug = store.slug?.trim();
+    if (slug == null || slug.isEmpty) {
+      _toast('${store.name} — mağaza səhifəsi hazır deyil');
+      return;
+    }
+    Navigator.of(context).pushNamed(
+      AppRoutes.vendorStore,
+      arguments: VendorStoreArgs(slug: slug, name: store.name),
+    );
+  }
+
+  void _openVendorStoreFromBanner(TarzHomeBanner banner) {
+    final slug = banner.vendorSlug?.trim();
+    if (slug == null || slug.isEmpty) return;
+    Navigator.of(context).pushNamed(
+      AppRoutes.vendorStore,
+      arguments: VendorStoreArgs(slug: slug, name: banner.title),
     );
   }
 
@@ -239,37 +268,55 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
   }
 
   void _onNavChanged(int index) {
-    setState(() => _navIndex = index);
+    setState(() {
+      _navIndex = index;
+      _mountedTabs.add(index);
+    });
   }
 
   Widget _buildNavBody(List<TarzProductPreview> newProducts) {
-    switch (_navIndex) {
-      case 0:
-        return TarzCatalogueScreen(
-          genderIndex: _categoryIndex,
-          selectedCategoryIndex: _catalogueCategoryIndex,
-          onGenderChanged: _onCatalogueGenderChanged,
-          onCategoryIndexChanged: (i) =>
-              setState(() => _catalogueCategoryIndex = i),
-          onSearchTap: _openSearch,
-          onCartTap: _openCart,
-          onCategoryTap: _openCatalogueCategory,
-        );
-      case 1:
-        return const TarzOutfitsScreen();
-      case 3:
-        return TarzWishlistScreen(
-          onProductTap: _openProductDetails,
-        );
-      case 4:
-        return TarzProfileScreen(
-          onWishlistTap: () => setState(() => _navIndex = 3),
-          onOutfitsTap: () => setState(() => _navIndex = 1),
-          onNotificationsTap: _openNotifications,
-        );
-      default:
-        return _buildHomeBody(newProducts);
-    }
+    return IndexedStack(
+      index: _navIndex,
+      sizing: StackFit.expand,
+      children: [
+        _mountedTabs.contains(0)
+            ? TarzCatalogueScreen(
+                key: const PageStorageKey<String>('tarz_tab_catalogue'),
+                genderIndex: _categoryIndex,
+                selectedCategoryIndex: _catalogueCategoryIndex,
+                onGenderChanged: _onCatalogueGenderChanged,
+                onCategoryIndexChanged: (i) =>
+                    setState(() => _catalogueCategoryIndex = i),
+                onSearchTap: _openSearch,
+                onCartTap: _openCart,
+                onCategoryTap: _openCatalogueCategory,
+              )
+            : const SizedBox.shrink(),
+        _mountedTabs.contains(1)
+            ? const TarzOutfitsScreen(
+                key: PageStorageKey<String>('tarz_tab_outfits'),
+              )
+            : const SizedBox.shrink(),
+        KeyedSubtree(
+          key: const PageStorageKey<String>('tarz_tab_home'),
+          child: _buildHomeBody(newProducts),
+        ),
+        _mountedTabs.contains(3)
+            ? TarzWishlistScreen(
+                key: const PageStorageKey<String>('tarz_tab_wishlist'),
+                onProductTap: _openProductDetails,
+              )
+            : const SizedBox.shrink(),
+        _mountedTabs.contains(4)
+            ? TarzProfileScreen(
+                key: const PageStorageKey<String>('tarz_tab_profile'),
+                onWishlistTap: () => _onNavChanged(3),
+                onOutfitsTap: () => _onNavChanged(1),
+                onNotificationsTap: _openNotifications,
+              )
+            : const SizedBox.shrink(),
+      ],
+    );
   }
 
   @override
@@ -338,6 +385,7 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
                       : RefreshIndicator(
                           onRefresh: _loadHomeData,
                           child: CustomScrollView(
+                            key: const PageStorageKey<String>('tarz_home_scroll'),
                             physics: const AlwaysScrollableScrollPhysics(
                               parent: BouncingScrollPhysics(),
                             ),
@@ -366,7 +414,17 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
                                   ),
                                 ),
                               SliverToBoxAdapter(
-                                child: HeroCollageBanner(banners: _homeBanners),
+                                child: HeroCollageBanner(
+                                  banners: _homeBanners,
+                                  loading: _homeLoading,
+                                  onBannerTap: _openVendorStoreFromBanner,
+                                ),
+                              ),
+                              SliverToBoxAdapter(
+                                child: HomePromoBannersSection(
+                                  sideTop: _sideTopBanners,
+                                  sideBottom: _sideBottomBanners,
+                                ),
                               ),
                               SliverToBoxAdapter(
                                 child: NewProductsSection(
@@ -392,8 +450,11 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
                               ),
                               SliverToBoxAdapter(
                                 child: AiOutfitBanner(
-                                  onCreateOutfit: () =>
-                                      setState(() => _navIndex = 1),
+                                  onCreateOutfit: () {
+                                    Navigator.of(context).pushNamed(
+                                      AppRoutes.aiOutfitGenerate,
+                                    );
+                                  },
                                 ),
                               ),
                               SliverToBoxAdapter(
@@ -410,8 +471,7 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
                               SliverToBoxAdapter(
                                 child: StoreChipsSection(
                                   stores: _stores,
-                                  onStoreTap: (store) =>
-                                      _toast(store.name),
+                                  onStoreTap: _openVendorStore,
                                 ),
                               ),
                               const SliverToBoxAdapter(

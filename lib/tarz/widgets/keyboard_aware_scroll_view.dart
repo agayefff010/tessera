@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Klaviatura açılanda yalnız scroll sahəsi yenilənir — bütün səhifə yox.
+/// Klaviatura inset-i yalnız alt spacer-də dinlənilir — form sahələri
+/// hər animasiya kadrında yenidən qurulmur.
 class KeyboardAwareScrollView extends StatelessWidget {
   const KeyboardAwareScrollView({
     super.key,
@@ -20,19 +21,37 @@ class KeyboardAwareScrollView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = padding.resolve(Directionality.of(context));
-    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
     return SingleChildScrollView(
       controller: controller,
-      physics: physics,
+      physics: physics ?? const ClampingScrollPhysics(),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: EdgeInsets.fromLTRB(
         base.left,
         base.top,
         base.right,
-        base.bottom + bottomInset + keyboardExtra,
+        base.bottom,
       ),
-      child: child,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          child,
+          _KeyboardInsetSpacer(extra: keyboardExtra),
+        ],
+      ),
     );
+  }
+}
+
+class _KeyboardInsetSpacer extends StatelessWidget {
+  const _KeyboardInsetSpacer({required this.extra});
+
+  final double extra;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return SizedBox(height: bottomInset + extra);
   }
 }

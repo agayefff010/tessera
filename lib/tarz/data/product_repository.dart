@@ -1,9 +1,19 @@
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:mime/mime.dart';
+
 import '../../services/api_client.dart';
 import '../../services/api_exception.dart';
+import '../../services/auth_storage.dart';
 import '../models/tarz_product_detail.dart';
 import '../models/tarz_product_preview.dart';
+import '../models/tarz_product_review.dart';
+import '../models/tarz_outfit.dart';
+import '../widgets/product_details/product_details_write_review_sheet.dart';
 import 'category_repository.dart';
+import 'outfit_mapper.dart';
 import 'product_mapper.dart';
+import 'review_mapper.dart';
 import 'tarz_gender_config.dart';
 
 class ProductListResult {
@@ -12,14 +22,18 @@ class ProductListResult {
     required this.pageCount,
     required this.limit,
     required this.rawPage,
+    this.totalCount,
   });
 
   final List<TarzProductPreview> products;
+  /// Bu səhifədə gələn məhsul sayı (pagination üçün).
   final int pageCount;
   final int limit;
   final int rawPage;
+  /// API `count` — ümumi uyğun məhsul (opsional).
+  final int? totalCount;
 
-  bool get hasMore => pageCount >= limit;
+  bool get hasMore => products.length >= limit;
 }
 
 /// Məhsul siyahısı (PLP) — pagination, filter, sort.
@@ -40,6 +54,7 @@ class ProductRepository {
     String? sort,
     double? minPrice,
     double? maxPrice,
+    String? vendorId,
     Set<String>? categoryScope,
     bool filterByGender = true,
   }) async {
@@ -58,6 +73,7 @@ class ProductRepository {
         maxPrice: maxPrice,
         categoryId: categoryId,
         genderIndex: genderIndex,
+        vendorId: vendorId,
       );
     }
 
@@ -71,6 +87,7 @@ class ProductRepository {
         minPrice: minPrice,
         maxPrice: maxPrice,
         categoryId: categoryId,
+        vendorId: vendorId,
       );
     }
 
@@ -83,6 +100,7 @@ class ProductRepository {
       sort: sort,
       minPrice: minPrice,
       maxPrice: maxPrice,
+      vendorId: vendorId,
     );
 
     var products = result.products;
@@ -94,9 +112,10 @@ class ProductRepository {
 
     return ProductListResult(
       products: products,
-      pageCount: result.pageCount,
+      pageCount: products.length,
       limit: limit,
       rawPage: page,
+      totalCount: result.totalCount,
     );
   }
 
@@ -109,6 +128,7 @@ class ProductRepository {
     double? minPrice,
     double? maxPrice,
     String? categoryId,
+    String? vendorId,
   }) async {
     final matched = <TarzProductPreview>[];
     var rawPage = startPage;
@@ -123,6 +143,7 @@ class ProductRepository {
         sort: sort,
         minPrice: minPrice,
         maxPrice: maxPrice,
+        vendorId: vendorId,
       );
 
       scanned++;
@@ -158,6 +179,7 @@ class ProductRepository {
     double? maxPrice,
     String? categoryId,
     int? genderIndex,
+    String? vendorId,
   }) async {
     final matched = <TarzProductPreview>[];
     var rawPage = startPage;
@@ -173,6 +195,7 @@ class ProductRepository {
         sort: sort,
         minPrice: minPrice,
         maxPrice: maxPrice,
+        vendorId: vendorId,
       );
 
       scanned++;
@@ -210,6 +233,7 @@ class ProductRepository {
     String? sort,
     double? minPrice,
     double? maxPrice,
+    String? vendorId,
   }) async {
     final query = <String, String>{
       'page': page.toString(),
@@ -234,18 +258,20 @@ class ProductRepository {
     if (maxPrice != null) {
       query['maxPrice'] = maxPrice.round().toString();
     }
+    if (vendorId != null && vendorId.isNotEmpty) {
+      query['vendorId'] = vendorId;
+    }
 
     final body = await _client.get('/products', query: query);
     final products = ProductMapper.listFromResponse(body);
-    final pageCount = body['count'] is int
-        ? body['count'] as int
-        : products.length;
+    final total = body['count'] is int ? body['count'] as int : null;
 
     return ProductListResult(
       products: products,
-      pageCount: pageCount,
+      pageCount: products.length,
       limit: limit,
       rawPage: page,
+      totalCount: total,
     );
   }
 
@@ -263,12 +289,140 @@ class ProductRepository {
     return ProductMapper.listFromResponse(body);
   }
 
+  /// `GET /products/search/autocomplete?q=`
+  Future<List<TarzProductPreview>> fetchAutocomplete(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) return const [];
+    final body = await _client.get(
+      '/products/search/autocomplete',
+      query: {'q': q},
+    );
+    return ProductMapper.listFromResponse(body);
+  }
+
+  /// `GET /products/:id/reviews?sort=&imagesOnly=`
+  Future<TarzProductReviewsResult> fetchProductReviews(
+    String id, {
+    String? sort,
+    bool imagesOnly = false,
+  }) async {
+    final query = <String, String>{};
+    if (sort != null && sort.isNotEmpty) {
+      query['sort'] = sort;
+    }
+    if (imagesOnly) {
+      query['imagesOnly'] = 'true';
+    }
+
+    final body = await _client.get(
+      '/products/$id/reviews',
+      query: query.isEmpty ? null : query,
+    );
+    return ReviewMapper.fromResponse(body);
+  }
+
+  /// `POST /products/:id/reviews` — auth tələb olunur.
+  Future<void> submitProductReview(
+    String id, {
+    required int rating,
+    required String comment,
+    List<TarzReviewImageDraft> images = const [],
+  }) async {
+    final token = await AuthStorage.instance.getToken();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('Rəy yazmaq üçün daxil olun');
+    }
+
+    final trimmed = comment.trim();
+    if (rating < 1 || rating > 5) {
+      throw const ApiException('Reytinq 1–5 arasında olmalıdır');
+    }
+    if (trimmed.isEmpty) {
+      throw const ApiException('Rəy mətnini yazın');
+    }
+
+    // Şəkil yoxdursa JSON — backend multipart gözləməyə bilər.
+    if (images.isEmpty) {
+      await _client.post(
+        '/products/$id/reviews',
+        body: {
+          'rating': rating,
+          'comment': trimmed,
+        },
+        bearerToken: token,
+      );
+      return;
+    }
+
+    final fields = {
+      'rating': rating.toString(),
+      'comment': trimmed,
+    };
+
+    try {
+      await _client.postMultipart(
+        '/products/$id/reviews',
+        fields: fields,
+        files: _reviewFiles(images, fieldName: 'images'),
+        bearerToken: token,
+      );
+    } on ApiException catch (e) {
+      // Field adı fərqli ola bilər.
+      if (e.statusCode == 400 || e.statusCode == 415 || e.statusCode == 422) {
+        await _client.postMultipart(
+          '/products/$id/reviews',
+          fields: fields,
+          files: _reviewFiles(images, fieldName: 'image'),
+          bearerToken: token,
+        );
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  List<http.MultipartFile> _reviewFiles(
+    List<TarzReviewImageDraft> images, {
+    required String fieldName,
+  }) {
+    final files = <http.MultipartFile>[];
+    for (var i = 0; i < images.length; i++) {
+      final image = images[i];
+      final filename = image.name.trim().isNotEmpty
+          ? image.name
+          : 'review_$i.jpg';
+      final mime =
+          lookupMimeType(filename, headerBytes: image.bytes) ?? 'image/jpeg';
+      final parts = mime.split('/');
+      files.add(
+        http.MultipartFile.fromBytes(
+          fieldName,
+          image.bytes,
+          filename: filename,
+          contentType: MediaType(
+            parts.isNotEmpty ? parts.first : 'image',
+            parts.length > 1 ? parts[1] : 'jpeg',
+          ),
+        ),
+      );
+    }
+    return files;
+  }
+
   Future<void> recordProductView(String id) async {
     try {
       await _client.post('/products/$id/views', body: const {});
     } catch (_) {
       // Analytics uğursuz olsa da PDP açıq qalsın.
     }
+  }
+
+  /// `GET /outfits/generate/:slug` — ayaqqabı + üst + çanta.
+  Future<TarzGeneratedOutfit> fetchGeneratedOutfit(String slug) async {
+    final trimmed = slug.trim();
+    if (trimmed.isEmpty) return TarzGeneratedOutfit.empty;
+    final body = await _client.get('/outfits/generate/$trimmed');
+    return OutfitMapper.fromResponse(body);
   }
 
   void dispose() => _client.dispose();

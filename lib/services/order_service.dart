@@ -58,15 +58,18 @@ class OrderService {
     }
   }
 
-  Future<List<TarzOrder>> fetchRemoteOrders() async {
+  /// Cari istifadəçinin sifarişləri — `GET /orders`.
+  /// `null` = sorğu alınmadı (token yox / şəbəkə), `[]` = həqiqətən boşdur.
+  Future<List<TarzOrder>?> fetchRemoteOrders() async {
     final token = await AuthStorage.instance.getToken();
-    if (token == null || token.isEmpty) return const [];
+    if (token == null || token.isEmpty) return null;
+    final user = await AuthStorage.instance.getUser();
 
     try {
       final body = await _client.get(ApiConfig.ordersPath, bearerToken: token);
-      return _parseOrdersList(body);
+      return _parseOrdersList(body, currentUserId: user?.id);
     } on ApiException {
-      return const [];
+      return null;
     }
   }
 
@@ -123,6 +126,8 @@ class OrderService {
       itemCount: itemCount,
       createdAt: DateTime.tryParse(orderJson['createdAt']?.toString() ?? '') ??
           DateTime.now(),
+      userId: _readUserId(orderJson),
+      paymentStatus: orderJson['paymentStatus']?.toString(),
       address: request.address,
       postalCode: request.postalCode,
       phone: request.phone,
@@ -130,43 +135,75 @@ class OrderService {
     );
   }
 
-  List<TarzOrder> _parseOrdersList(Map<String, dynamic> body) {
+  List<TarzOrder> _parseOrdersList(
+    Map<String, dynamic> body, {
+    String? currentUserId,
+  }) {
     dynamic list = body['orders'] ?? body['data'] ?? body['items'];
     if (list is Map<String, dynamic>) {
-      list = list['orders'] ?? list['items'];
+      list = list['orders'] ?? list['items'] ?? list['data'] ?? list;
     }
-    if (list is! List) return const [];
+
+    final rawItems = list is List ? list : [list ?? body];
 
     final orders = <TarzOrder>[];
-    for (final item in list) {
-      if (item is! Map<String, dynamic>) continue;
-      final id = item['_id']?.toString() ?? item['id']?.toString();
+    for (final item in rawItems) {
+      final map = _asMap(item);
+      if (map == null) continue;
+      final id = map['_id']?.toString() ?? map['id']?.toString();
       if (id == null || id.isEmpty) continue;
 
-      final items = item['items'];
-      var count = (item['itemCount'] as num?)?.toInt() ?? 0;
+      final userId = _readUserId(map);
+      if (currentUserId != null &&
+          userId != null &&
+          userId != currentUserId) {
+        continue;
+      }
+
+      final items = map['items'];
+      var count = (map['itemCount'] as num?)?.toInt() ??
+          (map['itemsCount'] as num?)?.toInt() ??
+          (map['productsCount'] as num?)?.toInt() ??
+          0;
       if (count == 0 && items is List) count = items.length;
 
       orders.add(
         TarzOrder(
           id: id,
-          status: TarzOrderStatusX.fromApi(item['status']?.toString()),
-          deliveryMethod: _deliveryFromJson(item),
-          totalManat: (item['total'] as num?)?.toDouble() ??
-              (item['totalAmount'] as num?)?.toDouble() ??
+          status: TarzOrderStatusX.fromApi(map['status']?.toString()),
+          deliveryMethod: _deliveryFromJson(map),
+          totalManat: (map['total'] as num?)?.toDouble() ??
+              (map['totalAmount'] as num?)?.toDouble() ??
+              (map['amount'] as num?)?.toDouble() ??
               0,
           itemCount: count,
-          createdAt: DateTime.tryParse(item['createdAt']?.toString() ?? '') ??
+          createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
               DateTime.now(),
-          address: _readAddress(item),
-          postalCode: _readPostalCode(item),
-          phone: item['phone']?.toString(),
+          userId: userId,
+          paymentStatus: map['paymentStatus']?.toString(),
+          address: _readAddress(map),
+          postalCode: _readPostalCode(map),
+          phone: map['phone']?.toString(),
           fromBackend: true,
         ),
       );
     }
     orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return orders;
+  }
+
+  Map<String, dynamic>? _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return null;
+  }
+
+  String? _readUserId(Map<String, dynamic> item) {
+    final raw = item['userId'] ?? item['user'];
+    if (raw is Map) {
+      return raw['_id']?.toString() ?? raw['id']?.toString();
+    }
+    return raw?.toString();
   }
 
   TarzDeliveryMethod _deliveryFromJson(Map<String, dynamic> item) {

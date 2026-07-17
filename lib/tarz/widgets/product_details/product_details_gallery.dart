@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../data/tarz_product_assets.dart';
 import '../../theme/tarz_spacing.dart';
+import '../../utils/tarz_image_cache.dart';
+import '../../wishlist/tarz_wishlist_controller.dart';
 
 /// Böyük portret şəkil + thumbnail sırası və «Geriyə» düyməsi.
 class ProductDetailsGallery extends StatelessWidget {
@@ -14,6 +16,7 @@ class ProductDetailsGallery extends StatelessWidget {
     required this.onBack,
     this.onFavorite,
     this.isFavorite = false,
+    this.favoriteProductId,
     this.mainImageAsset,
   });
 
@@ -24,6 +27,7 @@ class ProductDetailsGallery extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback? onFavorite;
   final bool isFavorite;
+  final String? favoriteProductId;
   final String? mainImageAsset;
 
   static const double thumbnailSize = 78;
@@ -94,14 +98,29 @@ class ProductDetailsGallery extends StatelessWidget {
                       bottom: false,
                       child: IconButton(
                         onPressed: onFavorite,
-                        icon: Icon(
-                          isFavorite
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
-                          color: isFavorite
-                              ? const Color(0xFFE53935)
-                              : const Color(0xFF121212),
-                        ),
+                        icon: favoriteProductId != null
+                            ? ValueListenableBuilder<bool>(
+                                valueListenable: TarzWishlistController.instance
+                                    .favoriteListenable(favoriteProductId!),
+                                builder: (context, favorite, _) {
+                                  return Icon(
+                                    favorite
+                                        ? Icons.favorite_rounded
+                                        : Icons.favorite_border_rounded,
+                                    color: favorite
+                                        ? const Color(0xFFE53935)
+                                        : const Color(0xFF121212),
+                                  );
+                                },
+                              )
+                            : Icon(
+                                isFavorite
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
+                                color: isFavorite
+                                    ? const Color(0xFFE53935)
+                                    : const Color(0xFF121212),
+                              ),
                       ),
                     ),
                   ),
@@ -154,39 +173,60 @@ class ProductDetailsGallery extends StatelessWidget {
   }
 
   Widget _buildMainImage(int index) {
-    if (_useNetwork) {
-      return Image.network(
-        imageUrls[index],
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _placeholder(),
-      );
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cacheW = TarzImageCache.px(context, constraints.maxWidth);
+        final cacheH = TarzImageCache.px(context, constraints.maxHeight);
 
-    final asset = mainImageAsset ??
-        (imageAssets.isNotEmpty
-            ? imageAssets[index]
-            : TarzProductAssets.nikeV5Rnr);
+        if (_useNetwork) {
+          return Image.network(
+            imageUrls[index],
+            fit: BoxFit.cover,
+            cacheWidth: cacheW,
+            cacheHeight: cacheH,
+            errorBuilder: (_, __, ___) => _placeholder(),
+          );
+        }
 
-    return Image.asset(
-      asset,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => _placeholder(),
+        final asset = mainImageAsset ??
+            (imageAssets.isNotEmpty
+                ? imageAssets[index]
+                : TarzProductAssets.nikeV5Rnr);
+
+        return Image.asset(
+          asset,
+          fit: BoxFit.cover,
+          cacheWidth: cacheW,
+          cacheHeight: cacheH,
+          errorBuilder: (_, __, ___) => _placeholder(),
+        );
+      },
     );
   }
 
   Widget _buildThumb(int index) {
-    if (_useNetwork) {
-      return Image.network(
-        imageUrls[index],
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _placeholder(),
-      );
-    }
+    return Builder(
+      builder: (context) {
+        final cache = TarzImageCache.px(context, thumbnailSize);
+        if (_useNetwork) {
+          return Image.network(
+            imageUrls[index],
+            fit: BoxFit.cover,
+            cacheWidth: cache,
+            cacheHeight: cache,
+            errorBuilder: (_, __, ___) => _placeholder(),
+          );
+        }
 
-    return Image.asset(
-      imageAssets[index],
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFFF5F5F5)),
+        return Image.asset(
+          imageAssets[index],
+          fit: BoxFit.cover,
+          cacheWidth: cache,
+          cacheHeight: cache,
+          errorBuilder: (_, __, ___) =>
+              const ColoredBox(color: Color(0xFFF5F5F5)),
+        );
+      },
     );
   }
 

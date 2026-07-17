@@ -41,11 +41,38 @@ abstract final class ProductMapper {  static TarzProductPreview fromJson(Map<Str
       brand: brand,
       imageUrl: imageUrl,
       badgeLabel: badgeLabel,
-      subtitle: json['styleTag']?.toString(),
-      categoryId: json['category']?.toString(),
-      subcategoryId: json['subcategory']?.toString(),
-      genderId: json['gender']?.toString(),
+      subtitle: _categoryLabel(json) ?? json['styleTag']?.toString(),
+      categoryId: _idOrString(json['category']),
+      subcategoryId: _idOrString(json['subcategory']),
+      genderId: _idOrString(json['gender']),
+      slug: json['slug']?.toString(),
     );
+  }
+
+  static String? _categoryLabel(Map<String, dynamic> json) {
+    final sub = json['subcategory'];
+    final cat = json['category'];
+    final subName = sub is Map ? sub['name']?.toString() : null;
+    final catName = cat is Map ? cat['name']?.toString() : null;
+    if (subName != null &&
+        subName.isNotEmpty &&
+        catName != null &&
+        catName.isNotEmpty &&
+        subName != catName) {
+      return '$catName / $subName';
+    }
+    if (subName != null && subName.isNotEmpty) return subName;
+    if (catName != null && catName.isNotEmpty) return catName;
+    return null;
+  }
+
+  static String? _idOrString(dynamic value) {
+    if (value == null) return null;
+    if (value is Map) {
+      return value['_id']?.toString() ?? value['id']?.toString();
+    }
+    final s = value.toString();
+    return s.isEmpty ? null : s;
   }
 
   static List<TarzProductPreview> listFromResponse(Map<String, dynamic> body) {
@@ -98,9 +125,29 @@ abstract final class ProductMapper {  static TarzProductPreview fromJson(Map<Str
         .toList();
 
     String? vendorName;
-    final vendorId = json['vendorId'];
-    if (vendorId is Map<String, dynamic>) {
+    String? vendorSlug;
+    bool? vendorDeliveryAvailable;
+    String? vendorAddress;
+    String? vendorOpenHours;
+    final storeAddresses = <String>[];
+    final vendorRaw = json['vendorId'];
+    if (vendorRaw is Map) {
+      final vendorId = Map<String, dynamic>.from(vendorRaw);
       vendorName = vendorId['name']?.toString();
+      vendorSlug = vendorId['slug']?.toString();
+      vendorAddress = vendorId['address']?.toString();
+      vendorOpenHours = vendorId['openHours']?.toString();
+      final delivery = vendorId['deliveryAvailable'];
+      if (delivery is bool) {
+        vendorDeliveryAvailable = delivery;
+      }
+      final rawAddresses = vendorId['storeAddresses'];
+      if (rawAddresses is List) {
+        for (final addr in rawAddresses) {
+          final text = addr?.toString().trim();
+          if (text != null && text.isNotEmpty) storeAddresses.add(text);
+        }
+      }
     }
 
     return TarzProductDetail(
@@ -118,6 +165,11 @@ abstract final class ProductMapper {  static TarzProductPreview fromJson(Map<Str
       details: json['details']?.toString(),
       careInstructions: json['careInstructions']?.toString(),
       vendorName: vendorName,
+      vendorSlug: vendorSlug,
+      vendorDeliveryAvailable: vendorDeliveryAvailable,
+      vendorAddress: vendorAddress,
+      vendorOpenHours: vendorOpenHours,
+      vendorStoreAddresses: storeAddresses,
       styleTag: json['styleTag']?.toString(),
       season: json['season']?.toString(),
       preview: preview,

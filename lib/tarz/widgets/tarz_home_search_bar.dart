@@ -11,6 +11,7 @@ class TarzHomeSearchBar extends StatefulWidget {
     this.focusNode,
     this.autofocus = false,
     this.onSearch,
+    this.onChanged,
     this.hintText = 'Məhsul, brend və ya rəng',
   });
 
@@ -18,6 +19,7 @@ class TarzHomeSearchBar extends StatefulWidget {
   final FocusNode? focusNode;
   final bool autofocus;
   final ValueChanged<String>? onSearch;
+  final ValueChanged<String>? onChanged;
   final String hintText;
 
   @override
@@ -44,6 +46,7 @@ class _TarzHomeSearchBarState extends State<TarzHomeSearchBar> {
               autofocus: widget.autofocus,
               textInputAction: TextInputAction.search,
               onSubmitted: widget.onSearch,
+              onChanged: widget.onChanged,
               cursorColor: TarzColors.ink,
               style: const TextStyle(
                 fontSize: 15,

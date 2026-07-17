@@ -9,11 +9,13 @@ import '../tarz/data/tarz_mock_catalog.dart';
 import '../tarz/models/product_filter_state.dart';
 import '../tarz/models/tarz_product_preview.dart';
 import '../tarz/screens/product_details_screen.dart';
+import '../tarz/screens/tarz_ai_outfit_generate_screen.dart';
 import '../tarz/screens/tarz_cart_screen.dart';
 import '../tarz/screens/tarz_category_listing_screen.dart';
 import '../tarz/screens/tarz_filter_screen.dart';
 import '../tarz/screens/tarz_notifications_screen.dart';
 import '../tarz/screens/tarz_search_screen.dart';
+import '../tarz/screens/tarz_vendor_store_screen.dart';
 
 export 'product_listing_args.dart';
 
@@ -28,6 +30,17 @@ class ProductDetailsArgs {
   final List<TarzProductPreview> similarProducts;
 }
 
+/// Mağaza səhifəsinə ötürülən arqumentlər.
+class VendorStoreArgs {
+  const VendorStoreArgs({
+    required this.slug,
+    this.name,
+  });
+
+  final String slug;
+  final String? name;
+}
+
 class AppRoutes {
   static const String splash = '/splash';
   static const String login = '/login';
@@ -39,6 +52,8 @@ class AppRoutes {
   static const String productDetails = '/product/details';
   static const String cart = '/cart';
   static const String notifications = '/notifications';
+  static const String vendorStore = '/vendor/store';
+  static const String aiOutfitGenerate = '/outfits/ai-generate';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -119,6 +134,23 @@ class AppRoutes {
       case notifications:
         return MaterialPageRoute<void>(
           builder: (context) => const TarzNotificationsScreen(),
+        );
+      case aiOutfitGenerate:
+        return MaterialPageRoute<bool>(
+          builder: (context) => const TarzAiOutfitGenerateScreen(),
+        );
+      case vendorStore:
+        final args = settings.arguments;
+        if (args is VendorStoreArgs && args.slug.trim().isNotEmpty) {
+          return MaterialPageRoute<void>(
+            builder: (context) => TarzVendorStoreScreen(
+              slug: args.slug.trim(),
+              initialName: args.name,
+            ),
+          );
+        }
+        return MaterialPageRoute(
+          builder: (context) => const HomeScreen(),
         );
       default:
         return MaterialPageRoute(

@@ -11,6 +11,8 @@ class RegisterUnderlineField extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.inputFormatters,
     this.obscureText = false,
+    this.textInputAction,
+    this.onSubmitted,
   });
 
   final String label;
@@ -19,6 +21,8 @@ class RegisterUnderlineField extends StatelessWidget {
   final TextInputType keyboardType;
   final List<TextInputFormatter>? inputFormatters;
   final bool obscureText;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
 
   static const Color _ink = Color(0xFF121212);
   static const Color _muted = Color(0xFF6B6B6B);
@@ -26,6 +30,10 @@ class RegisterUnderlineField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final softKeyboard = keyboardType == TextInputType.emailAddress ||
+        keyboardType == TextInputType.phone ||
+        obscureText;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -43,6 +51,10 @@ class RegisterUnderlineField extends StatelessWidget {
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
           obscureText: obscureText,
+          textInputAction: textInputAction,
+          onSubmitted: onSubmitted,
+          autocorrect: !softKeyboard,
+          enableSuggestions: !softKeyboard,
           style: const TextStyle(fontSize: 16, color: _ink),
           decoration: InputDecoration(
             hintText: hint,
