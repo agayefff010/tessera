@@ -37,6 +37,7 @@ class PlpProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] PlpProductCard(${product.id})');
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(15),

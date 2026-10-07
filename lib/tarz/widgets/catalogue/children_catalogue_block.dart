@@ -16,19 +16,26 @@ class ChildrenCatalogueBlock extends StatelessWidget {
   final VoidCallback onBlockTap;
   final ValueChanged<PlpCategoryOption>? onSubcategoryTap;
 
-  static const double _blockHeight = 152;
+  static const double _blockHeight = 168;
   static const Color _titleColor = Color(0xFF111111);
   static const Color _subcategoryColor = Color(0xFF444444);
 
+  static double _resolveBlockHeight(BuildContext context) {
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    return (_blockHeight * scale).clamp(_blockHeight, 200);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final blockHeight = _resolveBlockHeight(context);
+
     if (data.fullWidthBanner) {
       return Material(
         color: data.backgroundColor,
         child: InkWell(
           onTap: onBlockTap,
           child: SizedBox(
-            height: _blockHeight,
+            height: blockHeight,
             width: double.infinity,
             child: Image.asset(
               data.imageAsset,
@@ -50,14 +57,14 @@ class ChildrenCatalogueBlock extends StatelessWidget {
       subcategories: data.subcategories,
       onSubcategoryTap: onSubcategoryTap,
     );
-    final imageSide = _ImageSide(asset: data.imageAsset);
+    final imageSide = _ImageSide(asset: data.imageAsset, height: blockHeight);
 
     return Material(
       color: data.backgroundColor,
       child: InkWell(
         onTap: onBlockTap,
         child: SizedBox(
-          height: _blockHeight,
+          height: blockHeight,
           width: double.infinity,
           child: Row(
             children: data.imageOnLeft
@@ -98,34 +105,33 @@ class _TextSide extends StatelessWidget {
                 height: 1.15,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Expanded(
-              child: SingleChildScrollView(
-                physics: const NeverScrollableScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: subcategories.map((option) {
-                    return Align(
-                      alignment: Alignment.centerLeft,
-                      child: InkWell(
-                        onTap: () => onSubcategoryTap?.call(option),
-                        borderRadius: BorderRadius.circular(4),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 1),
-                          child: Text(
-                            option.name,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: ChildrenCatalogueBlock._subcategoryColor,
-                              height: 1.25,
-                            ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: subcategories.map((option) {
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: InkWell(
+                      onTap: () => onSubcategoryTap?.call(option),
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Text(
+                          option.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: ChildrenCatalogueBlock._subcategoryColor,
+                            height: 1.2,
                           ),
                         ),
                       ),
-                    );
-                  }).toList(),
-                ),
+                    ),
+                  );
+                }).toList(),
               ),
             ),
           ],
@@ -136,9 +142,10 @@ class _TextSide extends StatelessWidget {
 }
 
 class _ImageSide extends StatelessWidget {
-  const _ImageSide({required this.asset});
+  const _ImageSide({required this.asset, required this.height});
 
   final String asset;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
@@ -146,7 +153,7 @@ class _ImageSide extends StatelessWidget {
       child: Image.asset(
         asset,
         fit: BoxFit.cover,
-        height: ChildrenCatalogueBlock._blockHeight,
+        height: height,
         errorBuilder: (_, __, ___) => ColoredBox(
           color: Colors.black.withValues(alpha: 0.06),
           child: const Center(

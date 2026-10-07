@@ -5,6 +5,7 @@ import 'package:mime/mime.dart';
 import '../../services/api_client.dart';
 import '../../services/api_exception.dart';
 import '../../services/auth_storage.dart';
+import '../models/plp_category_option.dart';
 import '../models/tarz_product_detail.dart';
 import '../models/tarz_product_preview.dart';
 import '../models/tarz_product_review.dart';
@@ -55,6 +56,8 @@ class ProductRepository {
     double? minPrice,
     double? maxPrice,
     String? vendorId,
+    String? brandId,
+    bool hasDiscount = false,
     Set<String>? categoryScope,
     bool filterByGender = true,
   }) async {
@@ -74,6 +77,8 @@ class ProductRepository {
         categoryId: categoryId,
         genderIndex: genderIndex,
         vendorId: vendorId,
+        brandId: brandId,
+        hasDiscount: hasDiscount,
       );
     }
 
@@ -88,6 +93,8 @@ class ProductRepository {
         maxPrice: maxPrice,
         categoryId: categoryId,
         vendorId: vendorId,
+        brandId: brandId,
+        hasDiscount: hasDiscount,
       );
     }
 
@@ -101,6 +108,8 @@ class ProductRepository {
       minPrice: minPrice,
       maxPrice: maxPrice,
       vendorId: vendorId,
+      brandId: brandId,
+      hasDiscount: hasDiscount,
     );
 
     var products = result.products;
@@ -129,6 +138,8 @@ class ProductRepository {
     double? maxPrice,
     String? categoryId,
     String? vendorId,
+    String? brandId,
+    bool hasDiscount = false,
   }) async {
     final matched = <TarzProductPreview>[];
     var rawPage = startPage;
@@ -144,6 +155,8 @@ class ProductRepository {
         minPrice: minPrice,
         maxPrice: maxPrice,
         vendorId: vendorId,
+        brandId: brandId,
+        hasDiscount: hasDiscount,
       );
 
       scanned++;
@@ -165,6 +178,8 @@ class ProductRepository {
       pageCount: matched.length,
       limit: limit,
       rawPage: rawPage,
+      // Client gender filter — API `count` filtrsiz olur; boş→0, dolu→UI siyahı uzunluğu.
+      totalCount: matched.isEmpty ? 0 : null,
     );
   }
 
@@ -180,6 +195,8 @@ class ProductRepository {
     String? categoryId,
     int? genderIndex,
     String? vendorId,
+    String? brandId,
+    bool hasDiscount = false,
   }) async {
     final matched = <TarzProductPreview>[];
     var rawPage = startPage;
@@ -196,6 +213,8 @@ class ProductRepository {
         minPrice: minPrice,
         maxPrice: maxPrice,
         vendorId: vendorId,
+        brandId: brandId,
+        hasDiscount: hasDiscount,
       );
 
       scanned++;
@@ -221,6 +240,8 @@ class ProductRepository {
       pageCount: matched.length,
       limit: limit,
       rawPage: rawPage,
+      // Scope filter — API category-ni ignore edib ümumi count (20) qaytara bilir.
+      totalCount: matched.isEmpty ? 0 : null,
     );
   }
 
@@ -234,6 +255,8 @@ class ProductRepository {
     double? minPrice,
     double? maxPrice,
     String? vendorId,
+    String? brandId,
+    bool hasDiscount = false,
   }) async {
     final query = <String, String>{
       'page': page.toString(),
@@ -261,6 +284,12 @@ class ProductRepository {
     if (vendorId != null && vendorId.isNotEmpty) {
       query['vendorId'] = vendorId;
     }
+    if (brandId != null && brandId.isNotEmpty) {
+      query['brandId'] = brandId;
+    }
+    if (hasDiscount) {
+      query['hasDiscount'] = 'true';
+    }
 
     final body = await _client.get('/products', query: query);
     final products = ProductMapper.listFromResponse(body);
@@ -273,6 +302,25 @@ class ProductRepository {
       rawPage: page,
       totalCount: total,
     );
+  }
+
+  /// `GET /brands` — brend siyahısı.
+  Future<List<PlpCategoryOption>> fetchBrands() async {
+    final body = await _client.get('/brands');
+    final raw = body['data'] ?? body['brands'] ?? body;
+    if (raw is! List) return const [];
+
+    final brands = <PlpCategoryOption>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final map = Map<String, dynamic>.from(item);
+      final id = map['_id']?.toString() ?? map['id']?.toString() ?? '';
+      final name = map['name']?.toString() ?? '';
+      if (id.isEmpty || name.isEmpty) continue;
+      brands.add(PlpCategoryOption(id: id, name: name));
+    }
+    brands.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return brands;
   }
 
   Future<TarzProductDetail> fetchProductDetail(String id) async {

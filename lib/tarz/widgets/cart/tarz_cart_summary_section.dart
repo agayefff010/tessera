@@ -21,6 +21,7 @@ class TarzCartSummarySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzCartSummarySection');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Column(

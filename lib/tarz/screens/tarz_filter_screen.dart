@@ -197,6 +197,7 @@ class _TarzFilterScreenState extends State<TarzFilterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzFilterScreen');
     final visibleCategories = _categoriesShowMore
         ? _categoryOptions
         : _categoryOptions.take(5).toList();

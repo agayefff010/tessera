@@ -13,6 +13,7 @@ class TarzHomeSearchBar extends StatefulWidget {
     this.onSearch,
     this.onChanged,
     this.hintText = 'Məhsul, brend və ya rəng',
+    this.padding,
   });
 
   final TextEditingController controller;
@@ -21,6 +22,7 @@ class TarzHomeSearchBar extends StatefulWidget {
   final ValueChanged<String>? onSearch;
   final ValueChanged<String>? onChanged;
   final String hintText;
+  final EdgeInsetsGeometry? padding;
 
   @override
   State<TarzHomeSearchBar> createState() => _TarzHomeSearchBarState();
@@ -29,13 +31,15 @@ class TarzHomeSearchBar extends StatefulWidget {
 class _TarzHomeSearchBarState extends State<TarzHomeSearchBar> {
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzHomeSearchBar');
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        TarzSpacing.md,
-        0,
-        TarzSpacing.md,
-        TarzSpacing.sm,
-      ),
+      padding: widget.padding ??
+          const EdgeInsets.fromLTRB(
+            TarzSpacing.md,
+            0,
+            TarzSpacing.md,
+            TarzSpacing.sm,
+          ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [

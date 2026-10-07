@@ -85,6 +85,7 @@ class _ProductDetailsOutfitSectionState
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] ProductDetailsOutfitSection');
     final items = _items;
 
     return Column(

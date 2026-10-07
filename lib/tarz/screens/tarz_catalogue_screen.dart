@@ -250,6 +250,7 @@ class _TarzCatalogueScreenState extends State<TarzCatalogueScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzCatalogueScreen');
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxW = TarzBreakpoints.contentMaxWidth(constraints.maxWidth);

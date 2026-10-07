@@ -18,6 +18,7 @@ class RegisterSocialButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] RegisterSocialButton($label)');
     return SizedBox(
       width: double.infinity,
       height: 56,

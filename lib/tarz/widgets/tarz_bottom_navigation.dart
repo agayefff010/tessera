@@ -18,6 +18,7 @@ class TarzBottomNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzBottomNavigation');
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: Colors.white,

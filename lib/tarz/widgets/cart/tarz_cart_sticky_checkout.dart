@@ -13,6 +13,7 @@ class TarzCartStickyCheckout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzCartStickyCheckout');
     return ColoredBox(
       color: Colors.white,
       child: SafeArea(

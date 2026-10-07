@@ -20,6 +20,7 @@ class TarzHomeFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzHomeFooter');
     final theme = Theme.of(context).copyWith(
       dividerColor: Colors.white24,
       splashColor: Colors.white10,

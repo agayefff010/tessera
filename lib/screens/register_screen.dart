@@ -94,6 +94,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] RegisterScreen');
     return Scaffold(
       backgroundColor: _pageGrey,
       // false → ekran klaviatura ilə sıxılmır / silkələnmir.
@@ -300,6 +301,7 @@ class _NewsletterOptIn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] RegisterScreen._NewsletterOptIn');
     return ValueListenableBuilder<bool>(
       valueListenable: listenable,
       builder: (context, value, _) {
@@ -379,6 +381,7 @@ class _LegalConsentTextState extends State<_LegalConsentText> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] RegisterScreen._LegalConsentText');
     const base = TextStyle(
       fontSize: 13,
       height: 1.5,

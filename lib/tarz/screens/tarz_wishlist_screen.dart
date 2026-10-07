@@ -35,6 +35,7 @@ class _TarzWishlistScreenState extends State<TarzWishlistScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzWishlistScreen');
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxW = TarzBreakpoints.contentMaxWidth(constraints.maxWidth);

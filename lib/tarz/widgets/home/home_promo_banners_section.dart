@@ -19,6 +19,7 @@ class HomePromoBannersSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] HomePromoBannersSection');
     final slots = <TarzHomeBanner>[
       ...sideTop.where((b) => b.imageUrl.isNotEmpty),
       ...sideBottom.where((b) => b.imageUrl.isNotEmpty),

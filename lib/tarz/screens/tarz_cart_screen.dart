@@ -119,6 +119,7 @@ class _TarzCartScreenState extends State<TarzCartScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzCartScreen');
     final canPop = Navigator.of(context).canPop();
 
     return Scaffold(
@@ -255,6 +256,7 @@ class _CartFilledBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzCartScreen._CartFilledBody');
     return RefreshIndicator(
       onRefresh: cart.reload,
       child: SingleChildScrollView(

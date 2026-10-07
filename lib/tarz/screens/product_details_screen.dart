@@ -13,7 +13,6 @@ import '../outfits/tarz_outfits_controller.dart';
 import '../theme/tarz_colors.dart';
 import '../theme/tarz_spacing.dart';
 import '../widgets/cart/tarz_checkout_sheet.dart';
-import '../widgets/listing/plp_product_card.dart';
 import '../widgets/product_details/product_details_gallery.dart';
 import '../widgets/product_details/product_details_outfit_replace_sheet.dart';
 import '../widgets/product_details/product_details_outfit_section.dart';
@@ -21,6 +20,7 @@ import '../widgets/product_details/product_details_price_section.dart';
 import '../widgets/product_details/product_details_reviews_section.dart';
 import '../widgets/product_details/product_details_write_review_sheet.dart';
 import '../widgets/tarz_flash_message.dart';
+import '../widgets/tarz_product_card.dart';
 import '../wishlist/tarz_wishlist_controller.dart';
 
 /// Məhsul detalları — API PDP.
@@ -455,6 +455,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] ProductDetailsScreen');
     if (_loading && _detail == null) {
       return const Scaffold(
         backgroundColor: Colors.white,
@@ -908,50 +909,49 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   Widget _buildRelatedSection() {
-    const cardWidth = 175.0;
-    final cardHeight = cardWidth / 0.48;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: TarzSpacing.md),
+          child: Text(
+            'Oxşar məhsullar',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: TarzColors.ink,
+            ),
+          ),
+        ),
+        const SizedBox(height: TarzSpacing.md),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: TarzSpacing.md),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const spacing = TarzSpacing.sm;
+              final cardWidth = (constraints.maxWidth - spacing) / 2;
 
-    return Padding(
-      padding: const EdgeInsets.only(left: TarzSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(right: TarzSpacing.md),
-            child: Text(
-              'Oxşar məhsullar',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: TarzColors.ink,
-              ),
-            ),
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: List<Widget>.generate(_similar.length, (index) {
+                    final p = _similar[index];
+                    final item = SizedBox(
+                      width: cardWidth,
+                      child: TarzProductCard(
+                        product: p,
+                        onTap: () => _openProduct(p),
+                      ),
+                    );
+                    if (index == _similar.length - 1) return item;
+                    return Row(children: [item, const SizedBox(width: spacing)]);
+                  }),
+                ),
+              );
+            },
           ),
-          const SizedBox(height: TarzSpacing.md),
-          SizedBox(
-            height: cardHeight,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(right: TarzSpacing.md),
-              itemCount: _similar.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final product = _similar[index];
-                return SizedBox(
-                  width: cardWidth,
-                  child: PlpProductCard(
-                    product: product,
-                    onTap: () => _openProduct(product),
-                    onFavorite: () async {
-                      await _wishlist.toggle(product);
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

@@ -14,6 +14,7 @@ class CustomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] CustomButton');
     return ElevatedButton(
       onPressed: isLoading ? null : onPressed,
       child: isLoading

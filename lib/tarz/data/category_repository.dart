@@ -55,29 +55,10 @@ class CategoryRepository {
     return options.isEmpty ? _fallbackCatalogue() : options;
   }
 
-  /// Uşaq kataloqu blokları — API ağacından.
-  Future<List<TarzChildrenCatalogueBlock>> fetchKidsCatalogueBlocks() async {
-    const presets = [
-      (
-        backgroundColor: Color(0xFFE8F5E9),
-        imageAsset: TarzCatalogueAssets.childrenOglanlar,
-        imageOnLeft: true,
-        fullWidthBanner: false,
-      ),
-      (
-        backgroundColor: Color(0xFFE3F2FD),
-        imageAsset: TarzCatalogueAssets.childrenQizlar,
-        imageOnLeft: false,
-        fullWidthBanner: false,
-      ),
-      (
-        backgroundColor: Color(0xFFFFF3E0),
-        imageAsset: TarzCatalogueAssets.childrenKorpeler,
-        imageOnLeft: true,
-        fullWidthBanner: false,
-      ),
-    ];
+  /// Uşaq kataloqu — yalnız Körpə / Oğlan / Qız (sıra: 1→2→3).
+  static const int kidsMaxVisibleSubcategories = 5;
 
+  Future<List<TarzChildrenCatalogueBlock>> fetchKidsCatalogueBlocks() async {
     final genderId = TarzGenderConfig.idForIndex(2);
     final genderNode = await _findGenderNode(genderId);
     if (genderNode == null) return const [];
@@ -85,36 +66,94 @@ class CategoryRepository {
     final children = genderNode['children'];
     if (children is! List) return const [];
 
-    final blocks = <TarzChildrenCatalogueBlock>[];
-    var visualIndex = 0;
+    TarzChildrenCatalogueBlock? korpe;
+    TarzChildrenCatalogueBlock? oglan;
+    TarzChildrenCatalogueBlock? qiz;
+
     for (final child in children) {
       if (child is! Map<String, dynamic>) continue;
       if (_isBrandsNode(child)) continue;
 
       final id = child['_id']?.toString();
       final name = child['name']?.toString() ?? '';
+      final slug = child['slug']?.toString() ?? '';
       if (id == null || id.isEmpty || name.isEmpty) continue;
 
-      final subs = _childrenAsOptions(child);
-      final preset = presets[visualIndex % presets.length];
-      blocks.add(
-        TarzChildrenCatalogueBlock(
-          categoryId: id,
-          title: name,
-          subcategories: subs,
-          backgroundColor: preset.backgroundColor,
-          imageAsset: preset.imageAsset,
-          imageOnLeft: preset.imageOnLeft,
-          fullWidthBanner: preset.fullWidthBanner,
-        ),
+      final kind = _kidsBlockKind(slug: slug, name: name);
+      if (kind == null) continue;
+
+      final visual = _kidsBlockVisual(kind);
+      final block = TarzChildrenCatalogueBlock(
+        categoryId: id,
+        title: name,
+        subcategories: _childrenAsOptions(child)
+            .take(kidsMaxVisibleSubcategories)
+            .toList(),
+        backgroundColor: visual.backgroundColor,
+        imageAsset: visual.imageAsset,
+        imageOnLeft: visual.imageOnLeft,
+        fullWidthBanner: false,
       );
-      visualIndex++;
+
+      switch (kind) {
+        case _KidsBlockKind.korpe:
+          korpe ??= block;
+        case _KidsBlockKind.oglan:
+          oglan ??= block;
+        case _KidsBlockKind.qiz:
+          qiz ??= block;
+      }
     }
 
-    if (blocks.length > 3) {
-      return blocks.sublist(blocks.length - 3);
+    return [
+      if (korpe != null) korpe,
+      if (oglan != null) oglan,
+      if (qiz != null) qiz,
+    ];
+  }
+
+  /// Yalnız kök Körpə / Oğlan / Qız slotları (Geyim, Ayaqqabı və s. deyil).
+  _KidsBlockKind? _kidsBlockKind({required String slug, required String name}) {
+    final s = slug.toLowerCase();
+    final n = name.toLowerCase();
+    // Oğlan / qız / körpə — slug əvvəl (encoding-dən asılı deyil).
+    if (s.contains('oglan') || n.contains('oğlan') || n.contains('oglan')) {
+      return _KidsBlockKind.oglan;
     }
-    return blocks;
+    if (s.contains('qiz') || n.contains('qız') || n.contains('qiz')) {
+      return _KidsBlockKind.qiz;
+    }
+    if (s.contains('korpe') || n.contains('körpə') || n.contains('korpe')) {
+      return _KidsBlockKind.korpe;
+    }
+    return null;
+  }
+
+  ({
+    Color backgroundColor,
+    String imageAsset,
+    bool imageOnLeft,
+  }) _kidsBlockVisual(_KidsBlockKind kind) {
+    switch (kind) {
+      case _KidsBlockKind.oglan:
+        return (
+          backgroundColor: const Color(0xFFE8F5E9),
+          imageAsset: TarzCatalogueAssets.childrenOglanlar,
+          imageOnLeft: true,
+        );
+      case _KidsBlockKind.qiz:
+        return (
+          backgroundColor: const Color(0xFFE3F2FD),
+          imageAsset: TarzCatalogueAssets.childrenQizlar,
+          imageOnLeft: false,
+        );
+      case _KidsBlockKind.korpe:
+        return (
+          backgroundColor: const Color(0xFFFFF3E0),
+          imageAsset: TarzCatalogueAssets.childrenKorpeler,
+          imageOnLeft: true,
+        );
+    }
   }
 
   Future<List<PlpCategoryOption>> fetchSubcategories(String parentCategoryId) async {
@@ -437,6 +476,15 @@ class CategoryRepository {
   bool _isBrandsName(String name) =>
       name.toLowerCase().contains('brend');
 
+  /// Startup — kateqoriya ağacını əvvəlcədən cache-ə yükləyir.
+  Future<void> warmCache() async {
+    try {
+      await _loadTree();
+    } catch (_) {
+      // Home fallback-ləri ilə davam edir.
+    }
+  }
+
   Future<List<Map<String, dynamic>>> _loadTree() async {
     if (_sharedCache != null) return _sharedCache!;
     _sharedLoad ??= _fetchTree();
@@ -472,6 +520,8 @@ class CategoryRepository {
     if (_ownsClient) _client.dispose();
   }
 }
+
+enum _KidsBlockKind { korpe, oglan, qiz }
 
 /// Məhsulun kateqoriya / cins filtri.
 abstract final class ProductCategoryFilter {

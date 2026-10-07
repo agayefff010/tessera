@@ -219,6 +219,7 @@ class _TarzAiOutfitGenerateScreenState
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzAiOutfitGenerateScreen');
     final items = _outfit.displayItems;
     final busy = _generating || _saving || _addingToCart;
 

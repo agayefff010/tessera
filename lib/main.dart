@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'bootstrap/app_bootstrap.dart';
 import 'routes/app_routes.dart';
-import 'tarz/cart/tarz_cart_controller.dart';
-import 'tarz/orders/tarz_orders_controller.dart';
-import 'tarz/wishlist/tarz_wishlist_controller.dart';
+import 'screens/splash_video_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  TarzWishlistController.instance.ensureLoaded();
-  TarzCartController.instance.ensureLoaded();
-  TarzOrdersController.instance.ensureLoaded();
+  AppBootstrap.instance.start();
   runApp(const MyApp());
 }
 
@@ -18,6 +15,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] MyApp');
     return MaterialApp(
       title: 'Tessera',
       theme: ThemeData(
@@ -25,7 +23,8 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       onGenerateRoute: AppRoutes.generateRoute,
-      initialRoute: AppRoutes.splash,
+      home: const SplashVideoPage(),
+      //home: const HomeScreen(),
       debugShowCheckedModeBanner: false,
     );
   }

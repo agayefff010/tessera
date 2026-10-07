@@ -79,6 +79,7 @@ class _HeroCollageBannerState extends State<HeroCollageBanner> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] HeroCollageBanner');
     final items = _items;
 
     return Padding(

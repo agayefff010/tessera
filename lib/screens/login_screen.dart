@@ -99,8 +99,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
     FocusScope.of(context).unfocus();
     _loading.value = true;
+    
     try {
-      await _authService.login(email: email, password: password);
+      final result =
+          await _authService.login(email: email, password: password);
+      
       if (!mounted) return;
       try {
         await TarzWishlistController.instance.reload();
@@ -110,12 +113,16 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed(AppRoutes.home);
     } on ApiException catch (e) {
+     
       if (mounted) _toast(e.message);
     } on AuthParseException catch (e) {
+      
       if (mounted) _toast(e.message);
     } on ApiParseException catch (e) {
+     
       if (mounted) _toast(e.message);
     } catch (e) {
+      
       if (mounted) _toast('Gözlənilməz xəta: $e');
     } finally {
       if (mounted) _loading.value = false;
@@ -124,6 +131,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    
     return Scaffold(
       backgroundColor: Colors.white,
       // false: navbar klaviatura ilə yuxarı qalxmır.
@@ -249,6 +257,7 @@ class _LoginBottomChrome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] LoginScreen._LoginBottomChrome');
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -302,6 +311,7 @@ class _CredentialsBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] LoginScreen._CredentialsBox');
     const fieldStyle = TextStyle(fontSize: 14, color: _ink);
     const hintStyle = TextStyle(fontSize: 13, color: _placeholder);
 
@@ -412,6 +422,7 @@ class _LoginRegisterLinkState extends State<_LoginRegisterLink> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] LoginScreen._LoginRegisterLink');
     return Center(
       child: RichText(
         textAlign: TextAlign.center,

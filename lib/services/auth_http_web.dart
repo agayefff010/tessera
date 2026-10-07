@@ -5,19 +5,24 @@ import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
 import 'api_exception.dart';
+import 'auth_cookie_store.dart';
 import 'auth_http.dart';
 import 'auth_token_parser.dart';
 
-/// Web — brauzer Set-Cookie header-ini oxuya bilmir (HttpOnly + CORS).
+/// Web — brauzer Set-Cookie-ni JS-ə vermir (HttpOnly).
+/// withCredentials ilə brauzer cookie jar işləyir; body-dən oxumaq fallbackdır.
 Future<AuthHttpResponse> postAuth(
   String path, {
   required Map<String, dynamic> body,
+  String? cookieHeader,
 }) async {
   final uri = Uri.parse('${ApiConfig.baseUrl}$path');
   final client = browser.BrowserClient()..withCredentials = true;
 
   http.Response response;
   try {
+    print('[auth][web] POST $path');
+    print('[auth][web] cookieHeader ignored (browser jar): $cookieHeader');
     response = await client
         .post(
           uri,
@@ -42,17 +47,35 @@ Future<AuthHttpResponse> postAuth(
     } catch (_) {}
   }
 
+  print('[auth][web] Status: ${response.statusCode}');
+  print('[auth][web] Body: ${response.body}');
+
   if (response.statusCode >= 200 && response.statusCode < 300) {
     final token = AuthTokenParser.fromHeaderMap(response.headers) ??
         AuthTokenParser.fromBody(data);
     final refreshToken =
         AuthTokenParser.refreshFromHeaderMap(response.headers) ??
             AuthTokenParser.refreshFromBody(data);
+
+    // Web-də HttpOnly cookie oxunmur.
+    // Refresh cavabında JSON token yoxdursa — köhnə access-i "yeni" kimi qəbul etmə.
+    final store = AuthCookieStore.instance;
+    final isRefresh = path.contains('refresh');
+    final resolvedAccess =
+        token ?? (isRefresh ? null : store.accessToken);
+    final resolvedRefresh = refreshToken ?? store.refreshToken;
+
+
+    store.update(
+      accessToken: resolvedAccess,
+      refreshToken: resolvedRefresh,
+    );
+
     return AuthHttpResponse(
       statusCode: response.statusCode,
       data: data ?? <String, dynamic>{},
-      token: token,
-      refreshToken: refreshToken,
+      token: resolvedAccess,
+      refreshToken: resolvedRefresh,
     );
   }
 

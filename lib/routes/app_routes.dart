@@ -4,7 +4,7 @@ import 'product_listing_args.dart';
 import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/register_screen.dart';
-import '../screens/splash_screen.dart';
+import '../screens/splash_video_page.dart';
 import '../tarz/data/tarz_mock_catalog.dart';
 import '../tarz/models/product_filter_state.dart';
 import '../tarz/models/tarz_product_preview.dart';
@@ -58,7 +58,7 @@ class AppRoutes {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case splash:
-        return MaterialPageRoute(builder: (context) => const SplashScreen());
+        return MaterialPageRoute(builder: (context) => const SplashVideoPage());
       case login:
         return MaterialPageRoute(builder: (context) => const LoginScreen());
       case register:

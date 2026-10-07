@@ -71,7 +71,12 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
   int _loadedCount = 0;
   PlpFilterAction? _activeAction;
 
+  /// Kataloq «Brendlər» rejimi — `/brands` + `brandId` filter.
+  bool _brandsMode = false;
+  String? _brandId;
+
   bool get _isApiMode => widget.useApi;
+  bool get _discountsMode => _filter.discountsOnly;
 
   @override
   void initState() {
@@ -80,6 +85,11 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
     _categoryId = widget.categoryId;
     _genderIndex = widget.genderIndex;
     _filter = widget.initialFilter ?? const ProductFilterState();
+    _brandsMode = widget.title == 'Brendlər' ||
+        widget.categoryId == PlpSpecialCategory.brands;
+    if (_brandsMode) {
+      _categoryId = null;
+    }
     _scrollController.addListener(_onScroll);
 
     final search = widget.searchQuery?.trim();
@@ -106,9 +116,15 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
     final isSearch =
         widget.searchQuery != null && widget.searchQuery!.trim().isNotEmpty;
     if (!isSearch) {
+      if (_brandsMode) {
+        await _loadCategoryOptions();
+        if (_brandId == null && _categoryOptions.isNotEmpty) {
+          _brandId = _categoryOptions.first.id;
+        }
+      }
       await _refreshCategoryScope();
       await Future.wait([
-        _loadCategoryOptions(),
+        if (!_brandsMode) _loadCategoryOptions(),
         _loadFirstPage(),
       ]);
       return;
@@ -141,6 +157,12 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
 
   Future<void> _loadCategoryOptions() async {
     try {
+      if (_brandsMode) {
+        final brands = await _productRepo.fetchBrands();
+        if (!mounted) return;
+        setState(() => _categoryOptions = brands);
+        return;
+      }
       if (_categoryId != null && _categoryId!.isNotEmpty) {
         final subs = await _categoryRepo.fetchSubcategories(_categoryId!);
         if (subs.isNotEmpty) {
@@ -169,13 +191,15 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
     }
     if (_categoryOptions.isEmpty) {
       setState(() => _activeAction = null);
-      _toast('Kateqoriya tapılmadı');
+      _toast(_brandsMode ? 'Brend tapılmadı' : 'Kateqoriya tapılmadı');
       return;
     }
 
     setState(() => _activeAction = PlpFilterAction.categories);
     final selectedOption = _categoryOptions.cast<PlpCategoryOption?>().firstWhere(
-          (c) => c!.id == _categoryId || c.name == _title,
+          (c) =>
+              c!.id == (_brandsMode ? _brandId : _categoryId) ||
+              c.name == _title,
           orElse: () => null,
         );
 
@@ -187,20 +211,33 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
     if (!mounted) return;
 
     if (picked != null) {
-      if (picked.id == PlpSpecialCategory.discounts) {
+      if (_brandsMode) {
         setState(() {
+          _brandId = picked.id;
+          _title = picked.name;
+          _filter = const ProductFilterState();
+        });
+      } else if (picked.id == PlpSpecialCategory.discounts) {
+        setState(() {
+          _brandsMode = false;
+          _brandId = null;
           _categoryId = null;
           _title = picked.name;
           _filter = _filter.copyWith(quickFilterIndex: 0, subcategoryIds: {});
         });
       } else if (picked.id == PlpSpecialCategory.brands) {
         setState(() {
+          _brandsMode = true;
+          _brandId = null;
           _categoryId = null;
           _title = picked.name;
           _filter = const ProductFilterState();
         });
+        await _loadCategoryOptions();
       } else {
         setState(() {
+          _brandsMode = false;
+          _brandId = null;
           _categoryId = picked.id;
           _title = picked.name;
           _filter = _filter.copyWith(subcategoryIds: {});
@@ -209,12 +246,14 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
       if (_isApiMode) {
         await _refreshCategoryScope();
         await _loadFirstPage();
-        await _loadCategoryOptions();
+        if (!_brandsMode) await _loadCategoryOptions();
       }
     }
     setState(
       () => _activeAction =
-          _categoryId != null ? PlpFilterAction.categories : null,
+          (_brandsMode ? _brandId : _categoryId) != null
+              ? PlpFilterAction.categories
+              : null,
     );
   }
 
@@ -248,13 +287,15 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
     try {
       final result = await _productRepo.fetchProducts(
         page: 1,
-        categoryId: isSearch ? null : _effectiveCategoryId,
-        categoryScope: isSearch ? null : _categoryScope,
+        categoryId: isSearch || _brandsMode ? null : _effectiveCategoryId,
+        categoryScope: isSearch || _brandsMode ? null : _categoryScope,
         genderIndex: isSearch ? null : _genderIndex,
         search: search,
         sort: _effectiveSort ?? 'newest',
         minPrice: _filter.minPrice,
         maxPrice: _filter.maxPrice,
+        brandId: _brandsMode ? _brandId : null,
+        hasDiscount: !isSearch && _discountsMode,
         filterByGender: !isSearch,
       );
 
@@ -262,9 +303,12 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
       final processed = _applyClientProcessing(result.products);
       setState(() {
         _products = processed;
-        _loadedCount = result.totalCount ?? processed.length;
+        // Client scope/gender filter: totalCount null → görünən siyahı sayı.
+        _loadedCount = processed.isEmpty
+            ? 0
+            : (result.totalCount ?? processed.length);
         _lastRawPage = result.rawPage;
-        _hasMore = result.hasMore && processed.isNotEmpty;
+        _hasMore = processed.isEmpty ? false : result.hasMore;
         _loading = false;
       });
     } catch (e) {
@@ -293,13 +337,15 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
     try {
       final result = await _productRepo.fetchProducts(
         page: nextStartPage,
-        categoryId: isSearch ? null : _effectiveCategoryId,
-        categoryScope: isSearch ? null : _categoryScope,
+        categoryId: isSearch || _brandsMode ? null : _effectiveCategoryId,
+        categoryScope: isSearch || _brandsMode ? null : _categoryScope,
         genderIndex: isSearch ? null : _genderIndex,
         search: search,
         sort: _effectiveSort ?? 'newest',
         minPrice: _filter.minPrice,
         maxPrice: _filter.maxPrice,
+        brandId: _brandsMode ? _brandId : null,
+        hasDiscount: !isSearch && _discountsMode,
         filterByGender: !isSearch,
       );
 
@@ -308,7 +354,9 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
       setState(() {
         _lastRawPage = result.rawPage;
         _products = [..._products, ...processed];
-        _loadedCount = result.totalCount ?? _products.length;
+        _loadedCount = _products.isEmpty
+            ? 0
+            : (result.totalCount ?? _products.length);
         _hasMore = result.hasMore && processed.isNotEmpty;
         _loadingMore = false;
       });
@@ -330,7 +378,9 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
   ) {
     var result = List<TarzProductPreview>.from(list);
 
-    if (_filter.discountsOnly) {
+    // Endirimlər artıq API `hasDiscount=true` ilə gəlir — client-də kəsmə.
+    // (Köhnə offline / API dəstəkləməyəndə ehtiyat.)
+    if (_filter.discountsOnly && !_isApiMode) {
       result = result
           .where((p) => p.badgeLabel != null && p.badgeLabel!.isNotEmpty)
           .toList();
@@ -353,9 +403,12 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
         case 4:
           result.sort((a, b) => a.id.compareTo(b.id));
         case 5:
-          result = result
-              .where((p) => p.badgeLabel != null && p.badgeLabel!.isNotEmpty)
-              .toList();
+          // Sort panelində «endirimli» — API mode-da hasDiscount artıq tətbiq olunub.
+          if (!_isApiMode || !_discountsMode) {
+            result = result
+                .where((p) => p.badgeLabel != null && p.badgeLabel!.isNotEmpty)
+                .toList();
+          }
         default:
           break;
       }
@@ -370,7 +423,10 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
   }
 
   String get _productCountLabel {
-    final count = _isApiMode ? _loadedCount : (widget.totalCount ?? _displayProducts.length);
+    final displayed = _displayProducts.length;
+    if (!_loading && displayed == 0) return '0 məhsul';
+    final count =
+        _isApiMode ? _loadedCount : (widget.totalCount ?? displayed);
     return '$count məhsul';
   }
 
@@ -498,6 +554,7 @@ class _TarzCategoryListingScreenState extends State<TarzCategoryListingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzCategoryListingScreen');
     final products = _displayProducts;
     final showEmpty = !_loading && products.isEmpty;
 

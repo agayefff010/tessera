@@ -1,15 +1,32 @@
 /// Login/register/refresh cavabından JWT token çıxarma.
+/// Backend cookie-ləri: `accessToken`, `refreshToken` (Set-Cookie).
 abstract final class AuthTokenParser {
   static const _accessKeys = [
-    'token',
     'accessToken',
     'access_token',
+    'token',
     'jwt',
   ];
 
   static const _refreshKeys = [
     'refreshToken',
     'refresh_token',
+  ];
+
+  /// Set-Cookie access — əvvəl `accessToken=`.
+  static const accessCookiePrefixes = [
+    'accessToken=',
+    'access_token=',
+    'token=',
+    'Token=',
+    'TOKEN=',
+  ];
+
+  /// Set-Cookie refresh — əvvəl `refreshToken=`.
+  static const refreshCookiePrefixes = [
+    'refreshToken=',
+    'refresh_token=',
+    'RefreshToken=',
   ];
 
   static String? fromBody(Map<String, dynamic>? data) {
@@ -20,7 +37,6 @@ abstract final class AuthTokenParser {
       if (value is String && value.isNotEmpty) return value;
     }
 
-    // { tokens: { accessToken, refreshToken } }
     final tokens = data['tokens'];
     if (tokens is Map<String, dynamic>) {
       final nested = fromBody(tokens);
@@ -57,17 +73,27 @@ abstract final class AuthTokenParser {
 
   static String? fromSetCookieValue(
     String raw, {
-    List<String> prefixes = const ['token=', 'Token=', 'TOKEN='],
+    List<String> prefixes = accessCookiePrefixes,
   }) {
     final trimmed = raw.trim();
     for (final prefix in prefixes) {
       // Word-boundary: `refreshToken=` içində `Token=` tutmasın.
       final pattern = RegExp(
-        '(?:^|[;,\\s])$prefix',
+        '(?:^|[;,\\s])${RegExp.escape(prefix)}',
         caseSensitive: true,
       );
       final match = pattern.firstMatch(trimmed);
-      if (match == null) continue;
+      if (match == null) {
+        // Bəzən header tək cookie-dir: `accessToken=...`
+        if (trimmed.startsWith(prefix)) {
+          var value = trimmed.substring(prefix.length);
+          final end = value.indexOf(';');
+          if (end != -1) value = value.substring(0, end);
+          value = value.trim();
+          if (value.isNotEmpty) return value;
+        }
+        continue;
+      }
 
       final valueStart = match.end;
       var value = trimmed.substring(valueStart);
@@ -88,13 +114,11 @@ abstract final class AuthTokenParser {
   }
 
   static String? refreshFromSetCookieValues(Iterable<String> values) {
-    const prefixes = [
-      'refreshToken=',
-      'refresh_token=',
-      'RefreshToken=',
-    ];
     for (final value in values) {
-      final token = fromSetCookieValue(value, prefixes: prefixes);
+      final token = fromSetCookieValue(
+        value,
+        prefixes: refreshCookiePrefixes,
+      );
       if (token != null) return token;
     }
     return null;
@@ -110,14 +134,12 @@ abstract final class AuthTokenParser {
   }
 
   static String? refreshFromHeaderMap(Map<String, String> headers) {
-    const prefixes = [
-      'refreshToken=',
-      'refresh_token=',
-      'RefreshToken=',
-    ];
     for (final entry in headers.entries) {
       if (entry.key.toLowerCase() != 'set-cookie') continue;
-      final token = fromSetCookieValue(entry.value, prefixes: prefixes);
+      final token = fromSetCookieValue(
+        entry.value,
+        prefixes: refreshCookiePrefixes,
+      );
       if (token != null) return token;
     }
     return null;

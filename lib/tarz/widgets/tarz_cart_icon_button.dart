@@ -18,6 +18,7 @@ class TarzCartIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzCartIconButton');
     return ListenableBuilder(
       listenable: TarzCartController.instance,
       builder: (context, _) {

@@ -20,13 +20,18 @@ class TarzProductGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
+        if (width <= 0) return const SizedBox.shrink();
+
+        const horizontalInset = TarzSpacing.md;
+        const spacing = TarzSpacing.sm;
         final columns = TarzBreakpoints.productGridColumns(width);
-        final spacing = TarzSpacing.sm;
-        final usable = width - (columns - 1) * spacing;
+        // Padding daxilində qalan en — tileWidth tam enə görə hesablanmamalıdır.
+        final contentWidth = width - horizontalInset * 2;
+        final usable = contentWidth - (columns - 1) * spacing;
         final tileWidth = usable / columns;
 
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: TarzSpacing.md),
+          padding: const EdgeInsets.symmetric(horizontal: horizontalInset),
           child: Wrap(
             spacing: spacing,
             runSpacing: spacing,
@@ -36,7 +41,8 @@ class TarzProductGrid extends StatelessWidget {
                     width: tileWidth,
                     child: TarzProductCard(
                       product: p,
-                      onTap: onProductTap == null ? null : () => onProductTap!(p),
+                      onTap:
+                          onProductTap == null ? null : () => onProductTap!(p),
                     ),
                   ),
                 )

@@ -35,6 +35,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] CustomTextField(${widget.label})');
     return TextFormField(
       controller: widget.controller,
       keyboardType: widget.keyboardType,

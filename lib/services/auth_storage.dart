@@ -6,10 +6,12 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/api_config.dart';
 import '../models/auth_user.dart';
 import 'api_exception.dart';
+import 'auth_cookie_store.dart';
 import 'auth_http.dart';
 import 'jwt_payload.dart';
 
 /// JWT və istifadəçi məlumatının təhlükəsiz saxlanması.
+/// Access/refresh backend-dən əsasən Set-Cookie ilə gəlir.
 class AuthStorage {
   AuthStorage._();
 
@@ -71,6 +73,12 @@ class AuthStorage {
   }) async {
     final userJson = user != null ? _encodeUser(user) : null;
 
+    // Cookie-based backend ilə növbəti /auth/refresh üçün jar.
+    AuthCookieStore.instance.update(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+    );
+
     try {
       await _storage.write(key: _tokenKey, value: accessToken);
       if (refreshToken != null && refreshToken.isNotEmpty) {
@@ -122,7 +130,10 @@ class AuthStorage {
   Future<String?> _readAccessRaw() async {
     try {
       final stored = await _storage.read(key: _tokenKey);
-      if (stored != null && stored.isNotEmpty) return stored;
+      if (stored != null && stored.isNotEmpty) {
+        AuthCookieStore.instance.update(accessToken: stored);
+        return stored;
+      }
     } catch (_) {}
     return _memoryToken;
   }
@@ -130,7 +141,10 @@ class AuthStorage {
   Future<String?> _readRefreshRaw() async {
     try {
       final stored = await _storage.read(key: _refreshTokenKey);
-      if (stored != null && stored.isNotEmpty) return stored;
+      if (stored != null && stored.isNotEmpty) {
+        AuthCookieStore.instance.update(refreshToken: stored);
+        return stored;
+      }
     } catch (_) {}
     return _memoryRefreshToken;
   }
@@ -170,22 +184,30 @@ class AuthStorage {
     });
   }
 
+  /// `POST /auth/refresh` — body `{ refreshToken }` + Cookie header.
+  /// Yeni tokenlər yalnız Set-Cookie-dən gəlir (JSON-da token yoxdur).
   Future<String?> _doRefresh(String refreshToken) async {
     try {
+      print('[auth] REFRESH start (cookie-based)');
       final response = await postAuth(
         ApiConfig.refreshPath,
         body: {
           'refreshToken': refreshToken,
         },
+        cookieHeader: AuthCookieStore.instance.cookieHeader ??
+            'refreshToken=$refreshToken',
       );
 
+      // response.token = Set-Cookie accessToken (auth_http_io extract).
       final access = response.token;
       if (access == null || access.isEmpty) {
+       
         await clear();
         return null;
       }
 
       final nextRefresh = response.refreshToken ?? refreshToken;
+    
       await _writeSession(
         accessToken: access,
         refreshToken: nextRefresh,
@@ -193,11 +215,13 @@ class AuthStorage {
       );
       return access;
     } on ApiException catch (e) {
+      print('[auth] REFRESH ApiException: ${e.message} (${e.statusCode})');
       if (e.statusCode == 401 || e.statusCode == 403) {
         await clear();
       }
       return null;
-    } catch (_) {
+    } catch (e) {
+      print('[auth] REFRESH error: $e');
       return null;
     }
   }
@@ -224,6 +248,7 @@ class AuthStorage {
   }
 
   Future<void> clear() async {
+    AuthCookieStore.instance.clear();
     try {
       await _storage.delete(key: _tokenKey);
       await _storage.delete(key: _refreshTokenKey);

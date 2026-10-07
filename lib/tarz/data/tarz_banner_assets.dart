@@ -7,8 +7,8 @@ abstract final class TarzBannerAssets {
   static const String aiTileSquare2 = 'assets/banners/ai_tile_square_2.png';
   static const String sliderBanner = 'assets/banners/slider_banner.png';
   static const String aiKombinlerBanner = 'assets/banners/ai_kombinler_banner.png';
-  static const String brandsYerli = 'assets/banners/brands_yerli.png';
-  static const String brandsQlobal = 'assets/banners/brands_qlobal.jpg';
+  static const String brandsYerli = 'assets/brendler/Group 65.png';
+  static const String brandsQlobal = 'assets/brendler/Group 67.png';
 
   /// Ana bannerin altındakı lokal promo şəkillər.
   static const String homeWinter = 'assets/banners/home_winter.png';

@@ -17,6 +17,7 @@ class TarzProfileOrdersSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzProfileOrdersSection');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

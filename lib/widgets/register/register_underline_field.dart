@@ -30,6 +30,7 @@ class RegisterUnderlineField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] RegisterUnderlineField($label)');
     final softKeyboard = keyboardType == TextInputType.emailAddress ||
         keyboardType == TextInputType.phone ||
         obscureText;

@@ -128,6 +128,7 @@ class _TarzCheckoutSheetState extends State<_TarzCheckoutSheet> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzCheckoutSheet');
     return MediaQuery.removeViewInsets(
       context: context,
       removeBottom: true,

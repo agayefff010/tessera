@@ -28,6 +28,7 @@ class TarzHomeTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzHomeTopBar');
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         TarzSpacing.xs,

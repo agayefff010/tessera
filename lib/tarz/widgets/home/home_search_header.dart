@@ -21,6 +21,9 @@ class HomeSearchHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint(
+      'HomeSearchHeader ${DateTime.now().millisecondsSinceEpoch}',
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Row(

@@ -157,6 +157,7 @@ class _HomeGenderListingSectionState extends State<HomeGenderListingSection> {
         sort: _effectiveSort ?? 'newest',
         minPrice: _filter.minPrice,
         maxPrice: _filter.maxPrice,
+        hasDiscount: _filter.discountsOnly,
       );
 
       if (!mounted) return;
@@ -164,7 +165,7 @@ class _HomeGenderListingSectionState extends State<HomeGenderListingSection> {
       setState(() {
         _products = processed;
         _lastRawPage = result.rawPage;
-        _hasMore = result.hasMore && processed.isNotEmpty;
+        _hasMore = result.hasMore;
         _loading = false;
       });
     } catch (e) {
@@ -189,6 +190,7 @@ class _HomeGenderListingSectionState extends State<HomeGenderListingSection> {
         sort: _effectiveSort ?? 'newest',
         minPrice: _filter.minPrice,
         maxPrice: _filter.maxPrice,
+        hasDiscount: _filter.discountsOnly,
       );
 
       if (!mounted) return;
@@ -196,7 +198,7 @@ class _HomeGenderListingSectionState extends State<HomeGenderListingSection> {
       setState(() {
         _lastRawPage = result.rawPage;
         _products = [..._products, ...processed];
-        _hasMore = result.hasMore && processed.isNotEmpty;
+        _hasMore = result.hasMore;
         _loadingMore = false;
       });
     } catch (_) {
@@ -217,10 +219,15 @@ class _HomeGenderListingSectionState extends State<HomeGenderListingSection> {
   ) {
     var result = List<TarzProductPreview>.from(list);
 
+    // Endirimlər API `hasDiscount` ilə gəlir.
     if (_filter.discountsOnly) {
-      result = result
+      // ehtiyat: API ignore etsə belə badge olanları saxla
+      final onlyDiscounted = result
           .where((p) => p.badgeLabel != null && p.badgeLabel!.isNotEmpty)
           .toList();
+      if (onlyDiscounted.isNotEmpty) {
+        result = onlyDiscounted;
+      }
     }
 
     if (PlpSortMapper.needsClientProcessing(_sortIndex, _filter)) {
@@ -240,9 +247,11 @@ class _HomeGenderListingSectionState extends State<HomeGenderListingSection> {
         case 4:
           result.sort((a, b) => a.id.compareTo(b.id));
         case 5:
-          result = result
-              .where((p) => p.badgeLabel != null && p.badgeLabel!.isNotEmpty)
-              .toList();
+          if (!_filter.discountsOnly) {
+            result = result
+                .where((p) => p.badgeLabel != null && p.badgeLabel!.isNotEmpty)
+                .toList();
+          }
         default:
           break;
       }
@@ -288,6 +297,7 @@ class _HomeGenderListingSectionState extends State<HomeGenderListingSection> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] HomeGenderListingSection');
     return ColoredBox(
       color: const Color(0xFFFAFAFA),
       child: Column(

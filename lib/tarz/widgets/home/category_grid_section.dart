@@ -36,6 +36,7 @@ class CategoryGridSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] CategoryGridSection');
     final items = categories.take(4).toList();
 
     return Padding(

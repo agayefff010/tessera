@@ -4,7 +4,9 @@ import '../../models/auth_user.dart';
 import '../../routes/app_routes.dart';
 import '../../services/api_exception.dart';
 import '../../services/auth_service.dart';
+import '../cart/tarz_cart_controller.dart';
 import '../orders/tarz_orders_controller.dart';
+import '../wishlist/tarz_wishlist_controller.dart';
 import '../widgets/profile/tarz_profile_orders_section.dart';
 import '../widgets/tarz_flash_message.dart';
 import '../theme/tarz_breakpoints.dart';
@@ -126,6 +128,81 @@ class _TarzProfileScreenState extends State<TarzProfileScreen> {
     _toast('Hesabdan çıxış edildi');
   }
 
+  Future<void> _confirmDeleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text(
+          'Hesabı sil',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: TarzColors.ink,
+          ),
+        ),
+        content: const Text(
+          'Hesabınız həmişəlik silinəcək. Bu əməliyyat geri qaytarıla bilməz.',
+          style: TextStyle(
+            fontSize: 14,
+            height: 1.4,
+            color: TarzColors.ink,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Ləğv et'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFC62828),
+            ),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    await _deleteAccount();
+  }
+
+  Future<void> _deleteAccount() async {
+    try {
+      await _authService.deleteAccount();
+      _orders.clearSession();
+      await TarzWishlistController.instance.clear();
+      await TarzCartController.instance.clear();
+      if (!mounted) return;
+      setState(() => _user = null);
+      _toast('Hesab uğurla silindi');
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.login,
+        (route) => false,
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.statusCode == 401 || e.statusCode == 403) {
+        await _authService.logout();
+        _orders.clearSession();
+        if (!mounted) return;
+        setState(() => _user = null);
+        _toast('Sessiya bitib. Yenidən daxil olun.');
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AppRoutes.login,
+          (route) => false,
+        );
+        return;
+      }
+      _toast(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      _toast('Hesab silinmədi');
+    }
+  }
+
   Future<void> _openEditProfile() async {
     final user = _user;
     if (user == null) return;
@@ -164,6 +241,7 @@ class _TarzProfileScreenState extends State<TarzProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzProfileScreen');
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxW = TarzBreakpoints.contentMaxWidth(constraints.maxWidth);
@@ -203,6 +281,7 @@ class _TarzProfileScreenState extends State<TarzProfileScreen> {
                         user: _user!,
                         onEdit: _openEditProfile,
                         onLogout: _logout,
+                        onDeleteAccount: _confirmDeleteAccount,
                       )
                     else
                       _GuestHeader(
@@ -282,11 +361,13 @@ class _LoggedInHeader extends StatelessWidget {
     required this.user,
     required this.onEdit,
     required this.onLogout,
+    required this.onDeleteAccount,
   });
 
   final AuthUser user;
   final VoidCallback onEdit;
   final VoidCallback onLogout;
+  final VoidCallback onDeleteAccount;
 
   @override
   Widget build(BuildContext context) {
@@ -369,6 +450,20 @@ class _LoggedInHeader extends StatelessWidget {
                 child: const Text(
                   'Çıxış',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              height: 40,
+              child: TextButton(
+                onPressed: onDeleteAccount,
+                style: TextButton.styleFrom(
+                  foregroundColor: TarzColors.inkMuted,
+                ),
+                child: const Text(
+                  'Hesabı sil',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                 ),
               ),
             ),
@@ -577,6 +672,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzProfileScreen._EditProfileSheet');
     return MediaQuery.removeViewInsets(
       context: context,
       removeBottom: true,

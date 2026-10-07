@@ -10,6 +10,7 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] HomeScreen');
     return TarzHomeScreen(initialNavIndex: initialNavIndex);
   }
 }

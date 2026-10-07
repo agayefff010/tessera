@@ -20,6 +20,7 @@ class KeyboardAwareScrollView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] KeyboardAwareScrollView');
     final base = padding.resolve(Directionality.of(context));
 
     return SingleChildScrollView(
@@ -51,6 +52,7 @@ class _KeyboardInsetSpacer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] _KeyboardInsetSpacer');
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     return SizedBox(height: bottomInset + extra);
   }

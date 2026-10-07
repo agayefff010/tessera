@@ -25,7 +25,8 @@ class TarzProductCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AspectRatio(
               aspectRatio: 3 / 4,
@@ -66,16 +67,25 @@ class TarzProductCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(TarzSpacing.sm),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     product.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TarzTextStyles.body.copyWith(color: TarzColors.ink, fontWeight: FontWeight.w600),
+                    style: TarzTextStyles.body.copyWith(
+                      color: TarzColors.ink,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: TarzSpacing.xxs),
-                  Text(product.priceLabel, style: TarzTextStyles.price),
+                  Text(
+                    product.priceLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TarzTextStyles.price,
+                  ),
                 ],
               ),
             ),

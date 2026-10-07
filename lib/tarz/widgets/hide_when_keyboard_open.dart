@@ -15,6 +15,7 @@ class HideWhenKeyboardOpen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] HideWhenKeyboardOpen');
     final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     if (keyboardOpen) return const SizedBox.shrink();
     return child;
@@ -29,6 +30,7 @@ class KeyboardBottomSpacer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] KeyboardBottomSpacer');
     final inset = MediaQuery.viewInsetsOf(context).bottom;
     return SizedBox(height: inset > 0 ? inset + extra : extra);
   }

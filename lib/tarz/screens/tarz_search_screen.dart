@@ -115,6 +115,7 @@ class _TarzSearchScreenState extends State<TarzSearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzSearchScreen');
     final query = _controller.text.trim();
 
     return Scaffold(
@@ -125,6 +126,7 @@ class _TarzSearchScreenState extends State<TarzSearchScreen> {
         scrolledUnderElevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: TarzColors.ink,
+        toolbarHeight: 48,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.of(context).maybePop(),
@@ -144,6 +146,7 @@ class _TarzSearchScreenState extends State<TarzSearchScreen> {
         context: context,
         removeBottom: true,
         child: SafeArea(
+          top: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -152,6 +155,12 @@ class _TarzSearchScreenState extends State<TarzSearchScreen> {
                 autofocus: true,
                 onChanged: _onQueryChanged,
                 onSearch: (_) => _submitSearch(),
+                padding: const EdgeInsets.fromLTRB(
+                  TarzSpacing.md,
+                  0,
+                  TarzSpacing.md,
+                  TarzSpacing.sm,
+                ),
               ),
               if (_loading)
                 const LinearProgressIndicator(

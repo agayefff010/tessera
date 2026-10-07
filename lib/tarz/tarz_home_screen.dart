@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../bootstrap/app_bootstrap.dart';
 import '../routes/app_routes.dart';
 import '../services/api_exception.dart';
 import 'data/home_repository.dart';
@@ -76,63 +77,46 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
     super.dispose();
   }
 
-  Future<void> _loadHomeData() async {
+  Future<void> _loadHomeData({bool forceRefresh = false}) async {
     setState(() {
       _homeLoading = true;
       _homeError = null;
     });
 
-    String? loadError;
-
-    Future<T> guard<T>(Future<T> future, T fallback, {bool recordError = false}) async {
-      try {
-        return await future;
-      } on ApiException catch (e) {
-        if (recordError) loadError ??= e.message;
-        return fallback;
-      } catch (_) {
-        if (recordError) loadError ??= 'Məlumat yüklənmədi';
-        return fallback;
+    if (!forceRefresh) {
+      await AppBootstrap.instance.ready;
+      final cached = AppBootstrap.instance.homeSnapshot;
+      if (cached != null && mounted) {
+        _applyHomeSnapshot(cached);
+        return;
       }
     }
 
-    final results = await Future.wait([
-      guard(
-        _homeRepo.fetchHomeAdvertisements(),
-        const HomeAdvertisements(),
-      ),
-      guard(
-        _homeRepo.fetchNewProducts(limit: 2),
-        TarzMockCatalog.homeNewProductsGrid(),
-        recordError: true,
-      ),
-      guard(
-        _homeRepo.fetchDiscountProducts(limit: 2),
-        TarzMockCatalog.homeDiscountProductsGrid(),
-        recordError: true,
-      ),
-      guard(
-        _homeRepo.fetchHomeCategories(0),
-        CategoryGridSection.mockCategories(),
-      ),
-      guard(
-        _homeRepo.fetchStores(limit: 12),
-        StoreChipsSection.mockStores(),
-      ),
-    ]);
+    try {
+      final snapshot = await _homeRepo.loadBootstrapSnapshot();
+      if (!mounted) return;
+      AppBootstrap.instance.cacheHomeSnapshot(snapshot);
+      _applyHomeSnapshot(snapshot);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _homeError = e is ApiException ? e.message : 'Məlumat yüklənmədi';
+        _homeLoading = false;
+      });
+    }
+  }
 
-    if (!mounted) return;
-    final ads = results[0] as HomeAdvertisements;
+  void _applyHomeSnapshot(HomeBootstrapSnapshot snapshot) {
     setState(() {
-      _homeBanners = ads.mainBanner;
-      _sideTopBanners = ads.sideTop;
-      _sideBottomBanners = ads.sideBottom;
-      _newProducts = results[1] as List<TarzProductPreview>;
-      _discountProducts = results[2] as List<TarzProductPreview>;
-      _homeCategories = results[3] as List<HomeCategoryItem>;
-      _stores = results[4] as List<TarzStorePreview>;
+      _homeBanners = snapshot.advertisements.mainBanner;
+      _sideTopBanners = snapshot.advertisements.sideTop;
+      _sideBottomBanners = snapshot.advertisements.sideBottom;
+      _newProducts = snapshot.productGrids.newProducts;
+      _discountProducts = snapshot.productGrids.discountProducts;
+      _homeCategories = snapshot.categories;
+      _stores = snapshot.stores;
       _homeLoading = false;
-      _homeError = loadError;
+      _homeError = snapshot.error;
     });
   }
 
@@ -237,7 +221,10 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
       return;
     }
     if (category.id == PlpSpecialCategory.brands) {
-      _openProductListingApi(title: category.name);
+      _openProductListingApi(
+        title: category.name,
+        categoryId: PlpSpecialCategory.brands,
+      );
       return;
     }
 
@@ -321,6 +308,7 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[rebuild] TarzHomeScreen');
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Colors.white,
@@ -383,7 +371,7 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
                           onCategoryTap: _openCatalogueCategory,
                         )
                       : RefreshIndicator(
-                          onRefresh: _loadHomeData,
+                          onRefresh: () => _loadHomeData(forceRefresh: true),
                           child: CustomScrollView(
                             key: const PageStorageKey<String>('tarz_home_scroll'),
                             physics: const AlwaysScrollableScrollPhysics(
@@ -407,7 +395,8 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
                                         style: const TextStyle(fontSize: 13),
                                       ),
                                       trailing: TextButton(
-                                        onPressed: _loadHomeData,
+                                        onPressed: () =>
+                                            _loadHomeData(forceRefresh: true),
                                         child: const Text('Yenilə'),
                                       ),
                                     ),

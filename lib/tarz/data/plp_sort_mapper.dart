@@ -15,6 +15,10 @@ abstract final class PlpSortMapper {
   }
 
   static bool needsClientProcessing(int index, ProductFilterState filter) {
+    // Endirimlər API `hasDiscount` ilə gəlir — yalnız sıralama client-də lazımdırsa.
+    if (filter.discountsOnly && apiSupportedIndices.contains(index)) {
+      return false;
+    }
     if (filter.discountsOnly) return true;
     return !apiSupportedIndices.contains(index) && filter.apiSort == null;
   }

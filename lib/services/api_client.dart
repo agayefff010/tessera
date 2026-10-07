@@ -86,7 +86,10 @@ class ApiClient {
     String? bearerToken,
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}$path');
-    final headers = <String, String>{'Accept': 'application/json'};
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    };
     if (bearerToken != null && bearerToken.isNotEmpty) {
       headers['Authorization'] = 'Bearer $bearerToken';
     }

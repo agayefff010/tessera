@@ -28,6 +28,11 @@ class AuthService {
       },
     );
 
+   
+    print(
+      '[login] refreshToken=${response.refreshToken == null ? "NULL" : "YES"}',
+    );
+
     return _saveAuthResponse(response);
   }
 
@@ -59,13 +64,11 @@ class AuthService {
     final response = await postAuth(ApiConfig.registerPath, body: body);
 
     // Production register: body-də token yoxdur, JWT Set-Cookie-də gəlir.
-    // Cookie oxunmasa və ya save uğursuz olsa — eyni credential ilə login.
     try {
       if (response.data['user'] is Map<String, dynamic> &&
           response.token != null &&
           response.token!.isNotEmpty) {
         final saved = await _saveAuthResponse(response);
-        // Token həqiqətən işləyirmi — birbaşa yoxla.
         try {
           await fetchCurrentUser();
           return saved;
@@ -139,6 +142,20 @@ class AuthService {
     }
 
     throw const ApiException('Profil yenilənmədi');
+  }
+
+  /// Hesabı sil — `DELETE /auth/profile`.
+  Future<void> deleteAccount() async {
+    final token = await AuthStorage.instance.getToken();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('Daxil olmalısınız');
+    }
+
+    await _client.delete(
+      ApiConfig.profilePath,
+      bearerToken: token,
+    );
+    await AuthStorage.instance.clear();
   }
 
   Future<bool> isLoggedIn() => AuthStorage.instance.isLoggedIn();
