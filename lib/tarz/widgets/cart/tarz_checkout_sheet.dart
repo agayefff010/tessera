@@ -46,9 +46,12 @@ Future<TarzAuthPromptAction?> showTarzAuthRequiredDialog(
 }
 
 /// Sifariş təsdiqi — götürmə / çatdırılma seçimi.
+///
+/// [isGiftWrapped] hədiyyə sarğı seçimi — checkout sheet-ə xaricdən ötürülür.
 Future<TarzCheckoutRequest?> showTarzCheckoutSheet(
   BuildContext context, {
   String? initialPhone,
+  bool isGiftWrapped = false,
 }) {
   return showModalBottomSheet<TarzCheckoutRequest>(
     context: context,
@@ -57,14 +60,21 @@ Future<TarzCheckoutRequest?> showTarzCheckoutSheet(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (context) => _TarzCheckoutSheet(initialPhone: initialPhone),
+    builder: (context) => _TarzCheckoutSheet(
+      initialPhone: initialPhone,
+      isGiftWrapped: isGiftWrapped,
+    ),
   );
 }
 
 class _TarzCheckoutSheet extends StatefulWidget {
-  const _TarzCheckoutSheet({this.initialPhone});
+  const _TarzCheckoutSheet({
+    this.initialPhone,
+    this.isGiftWrapped = false,
+  });
 
   final String? initialPhone;
+  final bool isGiftWrapped;
 
   @override
   State<_TarzCheckoutSheet> createState() => _TarzCheckoutSheetState();
@@ -73,6 +83,7 @@ class _TarzCheckoutSheet extends StatefulWidget {
 class _TarzCheckoutSheetState extends State<_TarzCheckoutSheet> {
   TarzDeliveryMethod _method = TarzDeliveryMethod.pickup;
   final _address = TextEditingController();
+  final _city = TextEditingController();
   final _postal = TextEditingController();
   final _phone = TextEditingController();
 
@@ -87,6 +98,7 @@ class _TarzCheckoutSheetState extends State<_TarzCheckoutSheet> {
   @override
   void dispose() {
     _address.dispose();
+    _city.dispose();
     _postal.dispose();
     _phone.dispose();
     super.dispose();
@@ -95,9 +107,14 @@ class _TarzCheckoutSheetState extends State<_TarzCheckoutSheet> {
   void _submit() {
     if (_method == TarzDeliveryMethod.delivery) {
       final address = _address.text.trim();
+      final city = _city.text.trim();
       final phone = _phone.text.trim();
       if (address.isEmpty) {
         _showError('Çatdırılma ünvanını daxil edin');
+        return;
+      }
+      if (city.isEmpty) {
+        _showError('Şəhəri daxil edin');
         return;
       }
       if (phone.isEmpty) {
@@ -108,15 +125,22 @@ class _TarzCheckoutSheetState extends State<_TarzCheckoutSheet> {
         TarzCheckoutRequest(
           deliveryMethod: _method,
           address: address,
+          city: city,
           postalCode: _postal.text.trim().isEmpty ? null : _postal.text.trim(),
           phone: phone,
+          isGiftWrapped: widget.isGiftWrapped,
         ),
       );
       return;
     }
 
+    // Pickup — mağaza adı sabit (branch API yoxdur, aşağıdakı gap-a bax).
     Navigator.of(context).pop(
-      const TarzCheckoutRequest(deliveryMethod: TarzDeliveryMethod.pickup),
+      TarzCheckoutRequest(
+        deliveryMethod: TarzDeliveryMethod.pickup,
+        pickupBranch: 'Tessera Nizami',
+        isGiftWrapped: widget.isGiftWrapped,
+      ),
     );
   }
 
@@ -197,6 +221,16 @@ class _TarzCheckoutSheetState extends State<_TarzCheckoutSheet> {
               ),
               const SizedBox(height: 12),
               TextField(
+                controller: _city,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Şəhər *',
+                  hintText: 'Bakı',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
                 controller: _postal,
                 textInputAction: TextInputAction.next,
                 decoration: const InputDecoration(
@@ -230,7 +264,7 @@ class _TarzCheckoutSheetState extends State<_TarzCheckoutSheet> {
                   ),
                 ),
                 child: const Text(
-                  'Sifarişi rəsmiləşdir',
+                  'Ödənişə keç',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ),
@@ -348,6 +382,16 @@ Future<void> showTarzOrderSuccessDialog(
             'Status: ${order.status.labelAz}',
             style: const TextStyle(fontSize: 14, color: TarzColors.ink),
           ),
+          if (order.paymentStatus != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Ödəniş: ${order.paymentStatusEnum.labelAz}',
+              style: TextStyle(
+                fontSize: 13,
+                color: TarzColors.inkMuted.withValues(alpha: 0.9),
+              ),
+            ),
+          ],
           const SizedBox(height: 4),
           Text(
             order.deliveryMethod.labelAz,

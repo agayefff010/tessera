@@ -22,6 +22,9 @@ class TarzOrdersController extends ChangeNotifier {
   List<TarzOrder> get orders => List.unmodifiable(_orders);
   bool get isLoading => _loading;
 
+  /// Exposed for payment flow (Epoint init / verify / fetchOrderById).
+  OrderService get service => _service;
+
   Future<String?> _resolveUserId() async {
     final loggedIn = await AuthStorage.instance.isLoggedIn();
     if (!loggedIn) return null;
@@ -99,6 +102,10 @@ class TarzOrdersController extends ChangeNotifier {
     }
   }
 
+  /// Köhnə checkout (CASH). Epoint axınında istifadə olunmur.
+  ///
+  /// Lokal-order fallback qaldırıldı — əgər backend cavab vermirsə,
+  /// xəta atılır və səbət təmizlənmir.
   Future<TarzOrder> placeOrder({
     required TarzCheckoutRequest request,
     required double totalManat,
@@ -107,20 +114,19 @@ class TarzOrdersController extends ChangeNotifier {
     final userId = _currentUserId ?? await _resolveUserId();
     _currentUserId = userId;
 
-    var order = await _service.checkout(
+    final order = await _service.checkout(
       request: request,
       totalManat: totalManat,
       itemCount: itemCount,
     );
 
-    order ??= _service.createLocalOrder(
-      request: request,
-      totalManat: totalManat,
-      itemCount: itemCount,
-    );
+    // Lokal-order fallback silindi: backend təsdiqləməsə xəta atılır.
+    if (order == null) {
+      throw StateError('Sifariş backend tərəfindən təsdiqlənmədi');
+    }
 
     await _storage.addOrder(order, userId: userId);
-    _orders.removeWhere((o) => o.id == order!.id);
+    _orders.removeWhere((o) => o.id == order.id);
     _orders.insert(0, order);
     _orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     notifyListeners();

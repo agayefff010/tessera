@@ -1,16 +1,188 @@
+import 'package:flutter/foundation.dart';
+
 import '../config/api_config.dart';
 import '../tarz/models/tarz_order.dart';
 import 'api_client.dart';
 import 'api_exception.dart';
 import 'auth_storage.dart';
-import 'order_storage.dart';
 
-/// Checkout və sifarişlər API.
+/// Epoint ödəniş başlatma cavabı.
+class EpointInitResult {
+  const EpointInitResult({
+    required this.orderId,
+    required this.redirectUrl,
+    required this.totalAmount,
+    required this.transaction,
+  });
+
+  final String orderId;
+  final String redirectUrl;
+  final double totalAmount;
+  final String transaction;
+}
+
+/// Epoint ödəniş doğrulama cavabı.
+class EpointVerifyResult {
+  const EpointVerifyResult({
+    required this.success,
+    required this.orderId,
+    this.message,
+  });
+
+  final bool success;
+  final String orderId;
+  final String? message;
+}
+
+/// Backend sifariş və ödəniş əməliyyatları.
 class OrderService {
   OrderService({ApiClient? client}) : _client = client ?? ApiClient();
 
   final ApiClient _client;
 
+  // ---------------------------------------------------------------------------
+  // Epoint card payment
+  // ---------------------------------------------------------------------------
+
+  /// POST /checkout/epoint/init — sifariş yaradır və Epoint ödəniş URL-i qaytarır.
+  ///
+  /// Bu metod özü sifarişi yaradır — əvvəlcədən ayrı bir sifariş yaratmayın.
+  /// Init timeout-dan sonra retry etməyin: backend artıq sifariş yaratmış ola bilər.
+  Future<EpointInitResult> initEpointPayment({
+    required String deliveryType,
+    Map<String, String>? shippingAddress,
+    String? pickupBranch,
+    required bool isGiftWrapped,
+    required String clientOrigin,
+  }) async {
+    final token = await _requireToken();
+
+    final body = <String, dynamic>{
+      'deliveryType': deliveryType,
+      'isGiftWrapped': isGiftWrapped,
+      'clientOrigin': clientOrigin,
+    };
+
+    if (deliveryType == 'DELIVERY' && shippingAddress != null) {
+      body['shippingAddress'] = shippingAddress;
+    }
+    if (deliveryType == 'PICKUP' && pickupBranch != null) {
+      body['pickupBranch'] = pickupBranch;
+    }
+
+    final result = await _client.post(
+      '/checkout/epoint/init',
+      body: body,
+      bearerToken: token,
+    );
+
+    final data = result.data['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Ödəniş cavabı gözlənilən formatda deyil');
+    }
+
+    final orderId = data['orderId']?.toString();
+    if (orderId == null || orderId.isEmpty) {
+      throw const ApiException('Sifariş ID-si qaytarılmadı');
+    }
+
+    final epointPayment = data['epointPayment'];
+    if (epointPayment is! Map<String, dynamic>) {
+      throw const ApiException('Epoint ödəniş məlumatı tapılmadı');
+    }
+
+    final redirectUrl = epointPayment['redirect_url']?.toString();
+    if (redirectUrl == null || redirectUrl.isEmpty) {
+      throw const ApiException('Ödəniş URL-i qaytarılmadı');
+    }
+
+    // Təhlükəsizlik: yalnız HTTPS URL-lər qəbul olunur.
+    final uri = Uri.tryParse(redirectUrl);
+    if (uri == null || uri.scheme != 'https') {
+      throw const ApiException('Etibarsız ödəniş URL-i');
+    }
+
+    final totalAmount =
+        (data['totalAmount'] as num?)?.toDouble() ?? 0.0;
+    final transaction =
+        epointPayment['transaction']?.toString() ?? '';
+
+    return EpointInitResult(
+      orderId: orderId,
+      redirectUrl: redirectUrl,
+      totalAmount: totalAmount,
+      transaction: transaction,
+    );
+  }
+
+  /// POST /checkout/epoint/verify-order — ödənişin backend tərəfindən təsdiqlənməsini yoxlayır.
+  Future<EpointVerifyResult> verifyEpointPayment({
+    required String orderId,
+  }) async {
+    final token = await _requireToken();
+
+    final result = await _client.post(
+      '/checkout/epoint/verify-order',
+      body: {'orderId': orderId},
+      bearerToken: token,
+    );
+
+    final success = result.data['success'] == true;
+    final message = result.data['message']?.toString();
+    final dataMap = result.data['data'];
+    final resolvedId =
+        (dataMap is Map<String, dynamic> ? dataMap['orderId'] : null)
+                ?.toString() ??
+            orderId;
+
+    return EpointVerifyResult(
+      success: success,
+      orderId: resolvedId,
+      message: message,
+    );
+  }
+
+  /// GET /orders/:id — bir sifarişin tam detallarını oxuyur (paymentStatus daxil).
+  Future<TarzOrder?> fetchOrderById(String orderId) async {
+    final token = await AuthStorage.instance.getToken();
+    if (token == null || token.isEmpty) return null;
+
+    try {
+      final body = await _client.get(
+        '${ApiConfig.ordersPath}/$orderId',
+        bearerToken: token,
+      );
+      return _parseOrderDetail(body);
+    } on ApiException catch (e) {
+      if (e.statusCode == 401 || e.statusCode == 403 || e.statusCode == 404) {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Existing order operations
+  // ---------------------------------------------------------------------------
+
+  /// GET /orders — sifariş tarixçəsi.
+  Future<List<TarzOrder>?> fetchRemoteOrders() async {
+    final token = await AuthStorage.instance.getToken();
+    if (token == null || token.isEmpty) return null;
+
+    try {
+      final body = await _client.get(
+        ApiConfig.ordersPath,
+        bearerToken: token,
+      );
+      return _parseOrderList(body);
+    } on ApiException catch (e) {
+      if (e.statusCode == 401 || e.statusCode == 403) return null;
+      rethrow;
+    }
+  }
+
+  /// POST /checkout — köhnə CASH ödəniş (saxlanır, amma Epoint axınında istifadə olunmur).
   Future<TarzOrder?> checkout({
     required TarzCheckoutRequest request,
     required double totalManat,
@@ -19,216 +191,122 @@ class OrderService {
     final token = await AuthStorage.instance.getToken();
     if (token == null || token.isEmpty) return null;
 
-    final body = <String, dynamic>{
-      'paymentMethod': 'CASH',
-    };
-
-    if (request.deliveryMethod == TarzDeliveryMethod.delivery) {
-      body['shippingAddress'] = {
-        'address': request.address ?? '',
-        'city': 'Bakı',
-        'postalCode': request.postalCode ?? '',
-        'country': 'Azerbaijan',
-      };
-      if (request.phone != null && request.phone!.isNotEmpty) {
-        body['phone'] = request.phone;
-      }
-    } else {
-      body['shippingAddress'] = {
-        'address': 'Yerdən götürmə',
-        'city': 'Bakı',
-        'country': 'Azerbaijan',
-      };
-    }
-
     try {
+      final body = <String, dynamic>{
+        'paymentMethod': 'CASH',
+        'deliveryType': request.deliveryMethod == TarzDeliveryMethod.delivery
+            ? 'DELIVERY'
+            : 'PICKUP',
+      };
+      if (request.address != null) {
+        body['shippingAddress'] = {'street': request.address};
+      }
+
       final result = await _client.post(
         ApiConfig.checkoutPath,
         body: body,
         bearerToken: token,
       );
-      return _parseCheckoutResponse(
-        result.data,
-        request: request,
-        totalManat: totalManat,
-        itemCount: itemCount,
-      );
-    } on ApiException {
-      return null;
-    }
-  }
 
-  /// Cari istifadəçinin sifarişləri — `GET /orders`.
-  /// `null` = sorğu alınmadı (token yox / şəbəkə), `[]` = həqiqətən boşdur.
-  Future<List<TarzOrder>?> fetchRemoteOrders() async {
-    final token = await AuthStorage.instance.getToken();
-    if (token == null || token.isEmpty) return null;
-    final user = await AuthStorage.instance.getUser();
-
-    try {
-      final body = await _client.get(ApiConfig.ordersPath, bearerToken: token);
-      return _parseOrdersList(body, currentUserId: user?.id);
-    } on ApiException {
-      return null;
-    }
-  }
-
-  TarzOrder createLocalOrder({
-    required TarzCheckoutRequest request,
-    required double totalManat,
-    required int itemCount,
-  }) {
-    return TarzOrder(
-      id: OrderStorage.generateLocalId(),
-      status: TarzOrderStatus.preparing,
-      deliveryMethod: request.deliveryMethod,
-      totalManat: totalManat,
-      itemCount: itemCount,
-      createdAt: DateTime.now(),
-      address: request.address,
-      postalCode: request.postalCode,
-      phone: request.phone,
-      fromBackend: false,
-    );
-  }
-
-  TarzOrder? _parseCheckoutResponse(
-    Map<String, dynamic> body, {
-    required TarzCheckoutRequest request,
-    required double totalManat,
-    required int itemCount,
-  }) {
-    final orderJson = body['order'] is Map<String, dynamic>
-        ? body['order'] as Map<String, dynamic>
-        : body['data'] is Map<String, dynamic>
-            ? body['data'] as Map<String, dynamic>
-            : body;
-
-    final id = orderJson['_id']?.toString() ??
-        orderJson['id']?.toString() ??
-        orderJson['orderId']?.toString() ??
-        body['orderId']?.toString();
-
-    if (id == null || id.isEmpty) return null;
-
-    final statusRaw = orderJson['status']?.toString() ??
-        orderJson['orderStatus']?.toString();
-
-    final total = (orderJson['total'] as num?)?.toDouble() ??
-        (orderJson['totalAmount'] as num?)?.toDouble() ??
-        totalManat;
-
-    return TarzOrder(
-      id: id,
-      status: TarzOrderStatusX.fromApi(statusRaw),
-      deliveryMethod: request.deliveryMethod,
-      totalManat: total,
-      itemCount: itemCount,
-      createdAt: DateTime.tryParse(orderJson['createdAt']?.toString() ?? '') ??
-          DateTime.now(),
-      userId: _readUserId(orderJson),
-      paymentStatus: orderJson['paymentStatus']?.toString(),
-      address: request.address,
-      postalCode: request.postalCode,
-      phone: request.phone,
-      fromBackend: true,
-    );
-  }
-
-  List<TarzOrder> _parseOrdersList(
-    Map<String, dynamic> body, {
-    String? currentUserId,
-  }) {
-    dynamic list = body['orders'] ?? body['data'] ?? body['items'];
-    if (list is Map<String, dynamic>) {
-      list = list['orders'] ?? list['items'] ?? list['data'] ?? list;
-    }
-
-    final rawItems = list is List ? list : [list ?? body];
-
-    final orders = <TarzOrder>[];
-    for (final item in rawItems) {
-      final map = _asMap(item);
-      if (map == null) continue;
-      final id = map['_id']?.toString() ?? map['id']?.toString();
-      if (id == null || id.isEmpty) continue;
-
-      final userId = _readUserId(map);
-      if (currentUserId != null &&
-          userId != null &&
-          userId != currentUserId) {
-        continue;
+      final data = result.data['data'];
+      if (data is Map<String, dynamic>) {
+        final order = data['order'] ?? data;
+        if (order is Map<String, dynamic>) {
+          return _mapRemoteOrder(order);
+        }
       }
-
-      final items = map['items'];
-      var count = (map['itemCount'] as num?)?.toInt() ??
-          (map['itemsCount'] as num?)?.toInt() ??
-          (map['productsCount'] as num?)?.toInt() ??
-          0;
-      if (count == 0 && items is List) count = items.length;
-
-      orders.add(
-        TarzOrder(
-          id: id,
-          status: TarzOrderStatusX.fromApi(map['status']?.toString()),
-          deliveryMethod: _deliveryFromJson(map),
-          totalManat: (map['total'] as num?)?.toDouble() ??
-              (map['totalAmount'] as num?)?.toDouble() ??
-              (map['amount'] as num?)?.toDouble() ??
-              0,
-          itemCount: count,
-          createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
-              DateTime.now(),
-          userId: userId,
-          paymentStatus: map['paymentStatus']?.toString(),
-          address: _readAddress(map),
-          postalCode: _readPostalCode(map),
-          phone: map['phone']?.toString(),
-          fromBackend: true,
-        ),
-      );
+      return null;
+    } on ApiException {
+      return null;
     }
-    orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return orders;
-  }
-
-  Map<String, dynamic>? _asMap(dynamic value) {
-    if (value is Map<String, dynamic>) return value;
-    if (value is Map) return Map<String, dynamic>.from(value);
-    return null;
-  }
-
-  String? _readUserId(Map<String, dynamic> item) {
-    final raw = item['userId'] ?? item['user'];
-    if (raw is Map) {
-      return raw['_id']?.toString() ?? raw['id']?.toString();
-    }
-    return raw?.toString();
-  }
-
-  TarzDeliveryMethod _deliveryFromJson(Map<String, dynamic> item) {
-    final address = _readAddress(item)?.toLowerCase() ?? '';
-    if (address.contains('götürmə') || address.contains('goturme')) {
-      return TarzDeliveryMethod.pickup;
-    }
-    return TarzDeliveryMethod.delivery;
-  }
-
-  String? _readAddress(Map<String, dynamic> item) {
-    final shipping = item['shippingAddress'];
-    if (shipping is Map<String, dynamic>) {
-      return shipping['address']?.toString();
-    }
-    return item['address']?.toString();
-  }
-
-  String? _readPostalCode(Map<String, dynamic> item) {
-    final shipping = item['shippingAddress'];
-    if (shipping is Map<String, dynamic>) {
-      return shipping['postalCode']?.toString();
-    }
-    return item['postalCode']?.toString();
   }
 
   void dispose() => _client.dispose();
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
+  Future<String> _requireToken() async {
+    final token = await AuthStorage.instance.getToken();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('Daxil olmalısınız');
+    }
+    return token;
+  }
+
+  List<TarzOrder> _parseOrderList(Map<String, dynamic> body) {
+    final raw = body['data'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(_mapRemoteOrder)
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  TarzOrder? _parseOrderDetail(Map<String, dynamic> body) {
+    final data = body['data'];
+    if (data is! Map<String, dynamic>) return null;
+    final order = data['order'];
+    if (order is Map<String, dynamic>) return _mapRemoteOrder(order);
+    return _mapRemoteOrder(data);
+  }
+
+  static TarzOrder _mapRemoteOrder(Map<String, dynamic> json) {
+    final id = json['_id']?.toString() ?? json['id']?.toString() ?? '';
+
+    // deliveryType: backend "DELIVERY" / "PICKUP" → enum
+    final rawDelivery = json['deliveryType']?.toString().toUpperCase() ?? '';
+    final deliveryMethod = rawDelivery.contains('DELIVERY')
+        ? TarzDeliveryMethod.delivery
+        : TarzDeliveryMethod.pickup;
+
+    // status: backend PENDING / PROCESSING / DELIVERED / CANCELLED
+    final status = TarzOrderStatusX.fromApi(json['status']?.toString());
+
+    final totalAmount = (json['totalAmount'] as num?)?.toDouble() ?? 0;
+
+    // shippingAddress parsing
+    String? street;
+    String? city;
+    String? zipCode;
+    final addr = json['shippingAddress'];
+    if (addr is Map<String, dynamic>) {
+      street = addr['street']?.toString();
+      city = addr['city']?.toString();
+      zipCode = addr['zipCode']?.toString();
+    }
+
+    // Legacy: ünvan birbaşa string ola bilər
+    street ??= json['address']?.toString();
+
+    final paymentStatus = json['paymentStatus']?.toString();
+
+    final createdAt = DateTime.tryParse(
+          json['createdAt']?.toString() ?? '',
+        ) ??
+        DateTime.now();
+
+    // subOrders-dan item sayını təxmini hesabla
+    final subOrders = json['subOrders'];
+    int itemCount = 0;
+    if (subOrders is List) {
+      itemCount = subOrders.length;
+    }
+
+    return TarzOrder(
+      id: id,
+      status: status,
+      deliveryMethod: deliveryMethod,
+      totalManat: totalAmount,
+      itemCount: itemCount,
+      createdAt: createdAt,
+      paymentStatus: paymentStatus,
+      address: street,
+      city: city,
+      postalCode: zipCode,
+      fromBackend: true,
+    );
+  }
 }

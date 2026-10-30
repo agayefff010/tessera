@@ -141,25 +141,8 @@ abstract final class TarzMockCatalog {
         ),
       ];
 
-  /// Ana səhifə «Yenilər» 2 sütunlu şəbəkə (skrinşot).
-  static List<TarzProductPreview> homeNewProductsGrid() => const [
-        TarzProductPreview(
-          id: 'yn1',
-          brand: 'NIKE',
-          title: 'Nike V5 RNR',
-          subtitle: 'İdman ayaqqabısı',
-          priceLabel: '150₼',
-          imageAsset: TarzProductAssets.nikeV5Rnr,
-        ),
-        TarzProductPreview(
-          id: 'yn2',
-          brand: 'ZARA',
-          title: 'Zolaşıq zolaqlı kardiqan',
-          subtitle: 'Kardiqan',
-          priceLabel: '98₼',
-          imageAsset: TarzProductAssets.greenCardigan,
-        ),
-      ];
+
+
 
   /// Ana səhifə «Endirimlər» — alt sıra (2 kart).
   static List<TarzProductPreview> homeDiscountProductsGrid() => const [

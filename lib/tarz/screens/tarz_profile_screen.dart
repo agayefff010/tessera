@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/auth_user.dart';
 import '../../routes/app_routes.dart';
@@ -239,6 +240,23 @@ class _TarzProfileScreenState extends State<TarzProfileScreen> {
 
   void _toast(String message) => TarzFlashMessage.show(context, message);
 
+  static const _supportPhone = '+994514187701';
+
+  Future<void> _openWhatsAppSupport() async {
+    final message = Uri.encodeComponent(
+      'Salam, Tessera tətbiqi ilə bağlı köməyə ehtiyacım var.',
+    );
+    final url = Uri.parse('https://wa.me/$_supportPhone?text=$message');
+    try {
+      final launched = await launchUrl(url, mode: LaunchMode.externalApplication);
+      if (!launched && mounted) {
+        _toast('WhatsApp açıla bilmədi');
+      }
+    } catch (_) {
+      if (mounted) _toast('WhatsApp açıla bilmədi');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     debugPrint('[rebuild] TarzProfileScreen');
@@ -334,7 +352,7 @@ class _TarzProfileScreenState extends State<TarzProfileScreen> {
                         _ProfileMenuItem(
                           icon: Icons.help_outline_rounded,
                           title: 'Kömək',
-                          onTap: () => _toast('Kömək'),
+                          onTap: _openWhatsAppSupport,
                         ),
                       ],
                     ),

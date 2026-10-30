@@ -58,6 +58,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   bool _loading = true;
   String? _error;
 
+  final ScrollController _scrollController = ScrollController();
+  final ValueNotifier<double> _scrollOffset = ValueNotifier<double>(0.0);
+
   int _selectedImageIndex = 0;
   String? _selectedSize;
   String? _selectedColor;
@@ -66,6 +69,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(() {
+      _scrollOffset.value = _scrollController.offset;
+    });
     _similar = widget.similarProducts;
     _loadDetail();
     // Slug listədən gəlirsə dərhal yüklə — hər PDP-də Tam obraz.
@@ -74,6 +80,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
+    _scrollOffset.dispose();
     _productRepo.dispose();
     super.dispose();
   }
@@ -104,7 +112,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         _reviewsLoading = false;
         _selectedColor =
             detail.colors.length == 1 ? detail.colors.first : null;
-        _selectedSize = _pickDefaultSize(detail);
+        _selectedSize = null;
         _loading = false;
       });
 
@@ -120,7 +128,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         _loading = false;
         _reviewsLoading = false;
         _detail = _fallbackDetail();
-        _selectedSize = _detail!.availableSizes.firstOrNull;
+        _selectedSize = null;
       });
       _loadReviewsOnly();
       _loadOutfit(widget.product.slug);
@@ -131,7 +139,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         _loading = false;
         _reviewsLoading = false;
         _detail = _fallbackDetail();
-        _selectedSize = _detail!.availableSizes.firstOrNull;
+        _selectedSize = null;
       });
       _loadReviewsOnly();
       _loadOutfit(widget.product.slug);
@@ -372,12 +380,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  String? _pickDefaultSize(TarzProductDetail detail) {
-    final sizes = detail.sizesForColor(_selectedColor);
-    if (sizes.isNotEmpty) return sizes.first;
-    return detail.availableSizes.firstOrNull;
-  }
-
   List<String> get _sizeOptions {
     final detail = _detail;
     if (detail == null) return const [];
@@ -397,7 +399,39 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
+  Future<bool> _executeAddToCart(
+    TarzProductDetail detail, {
+    required String size,
+    String? color,
+  }) async {
+    if (_addingToCart) return false;
+    setState(() => _addingToCart = true);
+
+    try {
+      await TarzCartController.instance.addFromProduct(
+        detail.preview,
+        size: size,
+        color: color,
+        vendor: detail.vendorName,
+      );
+
+      if (!mounted) return true;
+      _selectedColor = color;
+      TarzFlashMessage.show(context, 'Səbətə əlavə edildi');
+      return true;
+    } catch (_) {
+      if (mounted) {
+        TarzFlashMessage.show(context, 'Səbətə əlavə edilmədi');
+      }
+      return false;
+    } finally {
+      if (mounted) setState(() => _addingToCart = false);
+    }
+  }
+
   Future<void> _addToCart() async {
+    if (_addingToCart) return;
+
     final detail = _detail;
     if (detail == null) return;
 
@@ -407,24 +441,44 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       return;
     }
 
-    if (!detail.isSizeAvailable(size, color: _selectedColor)) {
-      _toast('Bu ölçü/rəng stokda yoxdur');
+    final colors = detail.colors.where((c) => c.trim().isNotEmpty).toList();
+
+    // 1. Çoxsaylı rəng mövcuddursa: "Rəng seçin" modalı açılır, dərhal səbətə əlavə edilmir.
+    if (colors.length > 1) {
+      await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (sheetContext) => _ColorSelectionSheet(
+          detail: detail,
+          size: size,
+          onSelectColor: (color) =>
+              _executeAddToCart(detail, size: size, color: color),
+        ),
+      );
       return;
     }
 
-    setState(() => _addingToCart = true);
+    // 2. Yalnız bir rəng mövcuddursa: avtomatik istifadə edib birbaşa əlavə olunur.
+    if (colors.length == 1) {
+      final color = colors.first;
+      if (!detail.isSizeAvailable(size, color: color)) {
+        _toast('Bu ölçü/rəng stokda yoxdur');
+        return;
+      }
+      await _executeAddToCart(detail, size: size, color: color);
+      return;
+    }
 
-    await TarzCartController.instance.addFromProduct(
-      detail.preview,
-      size: size,
-      color: _selectedColor,
-      vendor: detail.vendorName,
-    );
-
-    if (!mounted) return;
-    setState(() => _addingToCart = false);
-
-    TarzFlashMessage.show(context, 'Səbətə əlavə edildi');
+    // 3. Rəng seçimi yoxdursa: birbaşa əlavə olunur.
+    if (!detail.isSizeAvailable(size)) {
+      _toast('Bu ölçü stokda yoxdur');
+      return;
+    }
+    await _executeAddToCart(detail, size: size, color: null);
   }
 
   Future<void> _replaceOutfitItem(TarzOutfitItem item) async {
@@ -466,58 +520,58 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     final detail = _detail!;
     final preview = detail.preview;
     final description = detail.fullDescription;
+    final statusBarH = MediaQuery.paddingOf(context).top;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ProductDetailsGallery(
-              imageUrls: detail.imageUrls,
-              selectedIndex: _selectedImageIndex,
-              onThumbnailTap: (i) => setState(() => _selectedImageIndex = i),
-              onBack: () => Navigator.of(context).maybePop(),
-              onFavorite: _toggleFavorite,
-              favoriteProductId: preview.id,
-            ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: TarzSpacing.md,
-                  vertical: 8,
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            controller: _scrollController,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ProductDetailsGallery(
+                  imageUrls: detail.imageUrls,
+                  selectedIndex: _selectedImageIndex,
+                  onThumbnailTap: (i) => setState(() => _selectedImageIndex = i),
+                  onBack: () => Navigator.of(context).maybePop(),
+                  onFavorite: _toggleFavorite,
+                  favoriteProductId: preview.id,
+                  showBackButton: false,
                 ),
-                child: Text(
-                  _error!,
-                  style: const TextStyle(color: Colors.red, fontSize: 13),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: TarzSpacing.md,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(color: Colors.red, fontSize: 13),
+                    ),
+                  ),
+                const SizedBox(height: TarzSpacing.sm),
+                ProductDetailsPriceSection(
+                  brand: detail.brand ?? 'Tessera',
+                  title: detail.title,
+                  priceLabel: detail.priceLabel,
+                  originalPriceLabel: detail.originalPriceLabel,
+                  badgeLabel: detail.badgeLabel,
+                  sizeSelector: _sizeOptions.isNotEmpty
+                      ? _buildSizeDropdown(_sizeOptions)
+                      : null,
                 ),
-              ),
-            const SizedBox(height: TarzSpacing.sm),
-            ProductDetailsPriceSection(
-              brand: detail.brand ?? 'Tessera',
-              title: detail.title,
-              priceLabel: detail.priceLabel,
-              originalPriceLabel: detail.originalPriceLabel,
-              badgeLabel: detail.badgeLabel,
-            ),
-            if (detail.colors.isNotEmpty) ...[
-              const SizedBox(height: TarzSpacing.md),
-              _buildColorSection(detail.colors),
-            ],
-            if (_sizeOptions.isNotEmpty) ...[
-              const SizedBox(height: TarzSpacing.md),
-              _buildSizeDropdown(_sizeOptions),
-            ],
-            if (description != null && description.isNotEmpty) ...[
-              const SizedBox(height: TarzSpacing.lg),
-              _buildDescription(description),
-            ],
-            const SizedBox(height: TarzSpacing.lg),
-            _buildAddToCart(),
-            const SizedBox(height: TarzSpacing.sm),
-            _buildDeliveryButton(detail),
-            const SizedBox(height: TarzSpacing.md),
-            ProductDetailsReviewsSection(
+                if (description != null && description.isNotEmpty) ...[
+                  const SizedBox(height: TarzSpacing.lg),
+                  _buildDescription(description),
+                ],
+                const SizedBox(height: TarzSpacing.lg),
+                _buildAddToCart(),
+                const SizedBox(height: TarzSpacing.sm),
+                _buildDeliveryButton(detail),
+                const SizedBox(height: TarzSpacing.md),
+                ProductDetailsReviewsSection(
               result: _reviews,
               loading: _reviewsLoading || _submittingReview,
               imagesOnly: _reviewsImagesOnly,
@@ -545,113 +599,148 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           ],
         ),
       ),
-    );
+      Positioned(
+        top: 0,
+        left: 0,
+        right: 0,
+        height: statusBarH + 72.0,
+        child: ValueListenableBuilder<double>(
+          valueListenable: _scrollOffset,
+          builder: (context, offset, _) {
+            final imageTop = statusBarH + 10.0;
+            final startTop = imageTop + 10.0;
+            final endTop = statusBarH + 4.0;
+            const startLeft = 36.0;
+            const endLeft = 16.0;
+
+            final t = (offset / 80.0).clamp(0.0, 1.0);
+            final currentTop = startTop + (endTop - startTop) * t;
+            final currentLeft = startLeft + (endLeft - startLeft) * t;
+
+            final buttonBg =
+                Colors.black.withValues(alpha: 0.38 * (1.0 - t));
+            final iconColor =
+                Color.lerp(Colors.white, const Color(0xFF121212), t)!;
+
+            return Stack(
+              children: [
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: statusBarH + 52.0,
+                  child: IgnorePointer(
+                    ignoring: t < 0.5,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: t),
+                        border: t > 0.05
+                            ? Border(
+                                bottom: BorderSide(
+                                  color: const Color(0xFFEAEAEA)
+                                      .withValues(alpha: t),
+                                  width: 0.8,
+                                ),
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: currentTop,
+                  left: currentLeft,
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).maybePop(),
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: buttonBg,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        size: 20,
+                        color: iconColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    ],
+  ),
+);
   }
 
-  Widget _buildColorSection(List<String> colors) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: TarzSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Rəng',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: TarzColors.ink,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: colors.map((color) {
-              final selected = _selectedColor == color;
-              return ChoiceChip(
-                label: Text(color),
-                selected: selected,
-                onSelected: (_) {
-                  setState(() {
-                    _selectedColor = color;
-                    final sizes = _detail?.sizesForColor(color) ?? [];
-                    if (_selectedSize == null ||
-                        !sizes.contains(_selectedSize)) {
-                      _selectedSize = sizes.isNotEmpty ? sizes.first : null;
-                    }
-                  });
-                },
-                selectedColor: TarzColors.ink.withValues(alpha: 0.12),
-                labelStyle: TextStyle(
-                  fontSize: 13,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  color: TarzColors.ink,
-                ),
-                side: BorderSide(
-                  color: selected ? TarzColors.ink : _fieldBorder,
-                ),
-                backgroundColor: Colors.white,
-                showCheckmark: false,
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildSizeDropdown(List<String> sizes) {
-    final value = sizes.contains(_selectedSize) ? _selectedSize : sizes.first;
+    final value = sizes.contains(_selectedSize) ? _selectedSize : null;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: TarzSpacing.md),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: Container(
-          padding: const EdgeInsets.only(left: 12, right: 4),
-          decoration: BoxDecoration(
-            border: Border.all(color: _fieldBorder),
-            borderRadius: BorderRadius.circular(4),
-            color: Colors.white,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Ölçü',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: TarzColors.ink,
-                ),
-              ),
-              const SizedBox(width: 4),
-              DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: value,
-                  icon: Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    size: 20,
-                    color: TarzColors.ink.withValues(alpha: 0.55),
-                  ),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: TarzColors.ink,
-                  ),
-                  items: sizes
-                      .map(
-                        (s) => DropdownMenuItem(value: s, child: Text(s)),
-                      )
-                      .toList(),
-                  onChanged: (v) {
-                    if (v != null) setState(() => _selectedSize = v);
-                  },
-                ),
-              ),
-            ],
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<String>(
+        value: value,
+        isDense: true,
+        dropdownColor: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        icon: const Padding(
+          padding: EdgeInsets.only(left: 4),
+          child: Icon(
+            Icons.keyboard_arrow_down_rounded,
+            size: 18,
+            color: Color(0xFF2D2D2D),
           ),
         ),
+        hint: const Text(
+          'Ölçü',
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF2D2D2D),
+            height: 1.15,
+          ),
+        ),
+        selectedItemBuilder: (BuildContext context) {
+          return sizes.map<Widget>((String s) {
+            return Text(
+              'Ölçü ($s)',
+              style: const TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF2D2D2D),
+                height: 1.15,
+              ),
+            );
+          }).toList();
+        },
+        items: sizes
+            .map(
+              (s) => DropdownMenuItem<String>(
+                value: s,
+                child: Text(
+                  s,
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF2D2D2D),
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+        onChanged: (v) {
+          if (v != null) setState(() => _selectedSize = v);
+        },
       ),
     );
   }
@@ -959,3 +1048,200 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 extension _FirstOrNull<E> on List<E> {
   E? get firstOrNull => isEmpty ? null : first;
 }
+
+/// "Rəng seçin" — "Səbətə əlavə et" basıldıqdan sonra açılan rəng seçim modalı.
+class _ColorSelectionSheet extends StatefulWidget {
+  const _ColorSelectionSheet({
+    required this.detail,
+    required this.size,
+    required this.onSelectColor,
+  });
+
+  final TarzProductDetail detail;
+  final String size;
+  final Future<bool> Function(String color) onSelectColor;
+
+  @override
+  State<_ColorSelectionSheet> createState() => _ColorSelectionSheetState();
+}
+
+class _ColorSelectionSheetState extends State<_ColorSelectionSheet> {
+  String? _submittingColor;
+
+  Future<void> _handleColorTap(String color, bool inStock) async {
+    if (_submittingColor != null) return;
+    if (!inStock) {
+      TarzFlashMessage.show(context, 'Bu rəngdə seçilmiş ölçü stokda yoxdur');
+      return;
+    }
+
+    setState(() => _submittingColor = color);
+
+    final success = await widget.onSelectColor(color);
+    if (!mounted) return;
+
+    if (success) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() => _submittingColor = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors =
+        widget.detail.colors.where((c) => c.trim().isNotEmpty).toList();
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: TarzSpacing.md,
+          right: TarzSpacing.md,
+          top: 12,
+          bottom: bottomInset > 0 ? bottomInset + 8 : 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0E0E0),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Rəng seçin',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: TarzColors.ink,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _submittingColor != null
+                      ? null
+                      : () => Navigator.of(context).pop(false),
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: TarzColors.ink,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: colors.map((color) {
+                    final inStock = widget.detail.isSizeAvailable(
+                      widget.size,
+                      color: color,
+                    );
+                    final isSubmitting = _submittingColor == color;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: InkWell(
+                        onTap: _submittingColor != null
+                            ? null
+                            : () => _handleColorTap(color, inStock),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            color: inStock
+                                ? const Color(0xFFF9F9F9)
+                                : const Color(0xFFF3F3F3),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: inStock
+                                  ? const Color(0xFFEEEEEE)
+                                  : const Color(0xFFE5E5E5),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  color,
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                    color: inStock
+                                        ? TarzColors.ink
+                                        : TarzColors.inkMuted,
+                                  ),
+                                ),
+                              ),
+                              if (!inStock)
+                                const Padding(
+                                  padding: EdgeInsets.only(right: 8),
+                                  child: Text(
+                                    'Stokda yoxdur',
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w400,
+                                      color: TarzColors.inkMuted,
+                                    ),
+                                  ),
+                                ),
+                              if (isSubmitting)
+                                const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: TarzColors.ink,
+                                  ),
+                                )
+                              else if (inStock)
+                                Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  size: 14,
+                                  color: TarzColors.ink.withValues(alpha: 0.4),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

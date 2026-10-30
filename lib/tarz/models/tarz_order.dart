@@ -12,6 +12,33 @@ enum TarzOrderStatus {
   cancelled,
 }
 
+/// Ödəniş statusu — backend paymentStatus.
+enum TarzPaymentStatus {
+  pending,
+  success,
+  failed,
+}
+
+extension TarzPaymentStatusX on TarzPaymentStatus {
+  String get labelAz {
+    switch (this) {
+      case TarzPaymentStatus.pending:
+        return 'Gözləyir';
+      case TarzPaymentStatus.success:
+        return 'Ödənilib';
+      case TarzPaymentStatus.failed:
+        return 'Uğursuz';
+    }
+  }
+
+  static TarzPaymentStatus fromApi(String? raw) {
+    final v = raw?.toUpperCase().trim() ?? '';
+    if (v == 'SUCCESS') return TarzPaymentStatus.success;
+    if (v == 'FAILED') return TarzPaymentStatus.failed;
+    return TarzPaymentStatus.pending;
+  }
+}
+
 extension TarzOrderStatusX on TarzOrderStatus {
   String get labelAz {
     switch (this) {
@@ -64,6 +91,7 @@ class TarzOrder {
     this.userId,
     this.paymentStatus,
     this.address,
+    this.city,
     this.postalCode,
     this.phone,
     this.fromBackend = false,
@@ -78,6 +106,7 @@ class TarzOrder {
   final String? userId;
   final String? paymentStatus;
   final String? address;
+  final String? city;
   final String? postalCode;
   final String? phone;
   final bool fromBackend;
@@ -86,6 +115,10 @@ class TarzOrder {
     if (id.length <= 12) return id.toUpperCase();
     return id.substring(0, 8).toUpperCase();
   }
+
+  /// paymentStatus-u TarzPaymentStatus enum-a çevirir.
+  TarzPaymentStatus get paymentStatusEnum =>
+      TarzPaymentStatusX.fromApi(paymentStatus);
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -97,6 +130,7 @@ class TarzOrder {
         'userId': userId,
         'paymentStatus': paymentStatus,
         'address': address,
+        'city': city,
         'postalCode': postalCode,
         'phone': phone,
         'fromBackend': fromBackend,
@@ -120,6 +154,7 @@ class TarzOrder {
       userId: json['userId']?.toString(),
       paymentStatus: json['paymentStatus']?.toString(),
       address: json['address']?.toString(),
+      city: json['city']?.toString(),
       postalCode: json['postalCode']?.toString(),
       phone: json['phone']?.toString(),
       fromBackend: json['fromBackend'] == true,
@@ -132,12 +167,18 @@ class TarzCheckoutRequest {
   const TarzCheckoutRequest({
     required this.deliveryMethod,
     this.address,
+    this.city,
     this.postalCode,
     this.phone,
+    this.pickupBranch,
+    this.isGiftWrapped = false,
   });
 
   final TarzDeliveryMethod deliveryMethod;
   final String? address;
+  final String? city;
   final String? postalCode;
   final String? phone;
+  final String? pickupBranch;
+  final bool isGiftWrapped;
 }

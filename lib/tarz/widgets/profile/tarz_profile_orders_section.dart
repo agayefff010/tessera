@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../cart/tarz_price_utils.dart';
 import '../../models/tarz_order.dart';
 import '../../theme/tarz_colors.dart';
+import 'order_tracking_bottom_sheet.dart';
 
 /// Profil — son sifarişlər bölməsi.
 class TarzProfileOrdersSection extends StatelessWidget {
@@ -126,18 +127,21 @@ class _OrderTile extends StatelessWidget {
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _statusColor(order.status).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  order.status.labelAz,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _statusColor(order.status),
+              GestureDetector(
+                onTap: () => showOrderTrackingSheet(context, order),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _statusColor(order.status).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    order.status.labelAz,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _statusColor(order.status),
+                    ),
                   ),
                 ),
               ),

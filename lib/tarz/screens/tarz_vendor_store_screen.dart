@@ -4,7 +4,7 @@ import '../../routes/app_routes.dart';
 import '../../services/api_exception.dart';
 import '../data/plp_sort_mapper.dart';
 import '../data/product_repository.dart';
-import '../data/tarz_mock_catalog.dart';
+
 import '../data/vendor_repository.dart';
 import '../models/tarz_product_preview.dart';
 import '../models/tarz_vendor.dart';
@@ -179,7 +179,6 @@ class _TarzVendorStoreScreenState extends State<TarzVendorStoreScreen> {
       AppRoutes.productDetails,
       arguments: ProductDetailsArgs(
         product: product,
-        similarProducts: TarzMockCatalog.homeNewProductsGrid(),
       ),
     );
   }

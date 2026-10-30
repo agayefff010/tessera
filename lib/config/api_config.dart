@@ -15,6 +15,9 @@ abstract final class ApiConfig {
   static const String advertisementsActivePath = '/advertisements/active';
   static const String vendorsSlugPath = '/vendors/slug';
 
+  static const String epointInitPath = '/checkout/epoint/init';
+  static const String epointVerifyPath = '/checkout/epoint/verify-order';
+
   static const String adPlacementMainBanner = 'main_banner';
   static const String adPlacementSideTop = 'side_top';
   static const String adPlacementSideBottom = 'side_bottom';

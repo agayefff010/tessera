@@ -286,28 +286,41 @@ class TarzCartController extends ChangeNotifier {
     final server = _serverTotals;
     if (server?.total != null) {
       final gift = includeGiftWrap ? giftWrapFeeManat : 0.0;
-      final shipping = server!.shipping ?? 0;
-      final itemsSubtotal = server.subtotal ?? _calcItemsSubtotal();
-      final discount = server.discount ?? _calcDiscount();
-      final baseTotal = server.total ?? (itemsSubtotal - discount + shipping);
-      final total = baseTotal + gift;
+      final shipping = server!.shipping ?? 0.0;
+      final discount =
+          (server.discount ?? _calcDiscount()).clamp(0.0, double.infinity);
+
+      final double originalSubtotal;
+      if (server.subtotal != null) {
+        if (discount > 0 && server.subtotal! >= (server.total! - shipping)) {
+          originalSubtotal = server.subtotal!;
+        } else if (discount > 0 &&
+            (server.subtotal! + discount - (server.total! - shipping)).abs() < 0.01) {
+          originalSubtotal = server.subtotal! + discount;
+        } else {
+          originalSubtotal = server.subtotal!;
+        }
+      } else {
+        originalSubtotal = _calcOriginalSubtotal();
+      }
+
+      final total = server.total! + gift;
 
       return TarzCartSummary(
         itemCountLabel: itemCountLabel,
-        subtotalLabel: TarzPriceUtils.formatManat(itemsSubtotal + discount),
+        subtotalLabel: TarzPriceUtils.formatManat(originalSubtotal),
         discountLabel: discount > 0
             ? '-${TarzPriceUtils.formatManat(discount).replaceAll('₼', '')}₼'
             : '0₼',
         giftWrapLabel:
             '+${TarzPriceUtils.formatManat(gift).replaceAll('₼', '')}₼',
         totalLabel: TarzPriceUtils.formatManat(total),
-        strikethroughTotalLabel:
-            TarzPriceUtils.formatManat(itemsSubtotal + discount),
+        strikethroughTotalLabel: TarzPriceUtils.formatManat(originalSubtotal),
         discountManat: discount,
         giftWrapManat: gift,
         totalManat: total,
-        subtotalManat: itemsSubtotal + discount,
-        itemsSubtotalManat: itemsSubtotal,
+        subtotalManat: originalSubtotal,
+        itemsSubtotalManat: (originalSubtotal - discount).clamp(0.0, double.infinity),
         shippingManat: shipping,
       );
     }
@@ -316,17 +329,11 @@ class TarzCartController extends ChangeNotifier {
   }
 
   TarzCartSummary _buildLocalSummary({required bool includeGiftWrap}) {
-    var subtotalOriginal = 0.0;
-    var itemsCurrent = 0.0;
-
-    for (final item in _items) {
-      final unitOriginal = item.originalPriceManat ?? item.priceManat;
-      subtotalOriginal += unitOriginal * item.quantity;
-      itemsCurrent += item.priceManat * item.quantity;
-    }
-
+    final subtotalOriginal = _calcOriginalSubtotal();
+    final itemsCurrent = _calcItemsSubtotal();
     const shipping = 0.0;
-    final discountAmount = subtotalOriginal - itemsCurrent;
+    final discountAmount =
+        (subtotalOriginal - itemsCurrent).clamp(0.0, double.infinity);
     final gift = includeGiftWrap ? giftWrapFeeManat : 0.0;
     final total = itemsCurrent + gift + shipping;
 
@@ -349,19 +356,21 @@ class TarzCartController extends ChangeNotifier {
     );
   }
 
+  double _calcOriginalSubtotal() {
+    return _items.fold(
+      0.0,
+      (sum, i) => sum + (i.originalPriceManat ?? i.priceManat) * i.quantity,
+    );
+  }
+
   double _calcItemsSubtotal() {
     return _items.fold(0.0, (sum, i) => sum + i.priceManat * i.quantity);
   }
 
   double _calcDiscount() {
-    var original = 0.0;
-    var current = 0.0;
-    for (final item in _items) {
-      final unitOriginal = item.originalPriceManat ?? item.priceManat;
-      original += unitOriginal * item.quantity;
-      current += item.priceManat * item.quantity;
-    }
-    return original - current;
+    final original = _calcOriginalSubtotal();
+    final current = _calcItemsSubtotal();
+    return (original - current).clamp(0.0, double.infinity);
   }
 
   Future<void> _persistLocal() => _storage.save(_items);

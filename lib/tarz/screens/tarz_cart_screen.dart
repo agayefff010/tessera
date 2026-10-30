@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../routes/app_routes.dart';
 import '../../services/auth_service.dart';
+import '../../services/order_service.dart';
 import '../cart/tarz_cart_controller.dart';
 import '../models/tarz_cart_item.dart';
+import '../models/tarz_order.dart';
 import '../models/tarz_product_preview.dart';
 import '../orders/tarz_orders_controller.dart';
+import '../screens/epoint_payment_screen.dart';
 import '../wishlist/tarz_wishlist_controller.dart';
 import '../theme/tarz_colors.dart';
 import '../widgets/cart/tarz_cart_empty_state.dart';
@@ -34,6 +39,9 @@ class _TarzCartScreenState extends State<TarzCartScreen> {
   bool _promoExpanded = false;
   bool _giftWrapSelected = false;
   bool _checkoutBusy = false;
+
+  /// Yarımçıq ödəniş üçün saxlanmış orderId — kəsilmədən sonra verify etmək üçün.
+  String? _pendingOrderId;
 
   @override
   void initState() {
@@ -69,9 +77,15 @@ class _TarzCartScreenState extends State<TarzCartScreen> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Epoint card payment flow
+  // ---------------------------------------------------------------------------
+
   Future<void> _startCheckout() async {
+    // Dublikat klik qarşısını al.
     if (_checkoutBusy || _cart.isEmpty) return;
 
+    // Auth yoxla.
     final loggedIn = await _authService.isLoggedIn();
     if (!loggedIn) {
       if (!mounted) return;
@@ -89,31 +103,187 @@ class _TarzCartScreenState extends State<TarzCartScreen> {
       return;
     }
 
+    // Çatdırılma məlumatlarını topla.
     final user = await _authService.getCachedUser();
     if (!mounted) return;
     final request = await showTarzCheckoutSheet(
       context,
       initialPhone: user?.phone,
+      isGiftWrapped: _giftWrapSelected,
     );
     if (request == null || !mounted) return;
 
     setState(() => _checkoutBusy = true);
     try {
-      final summary = _cart.buildSummary(includeGiftWrap: _giftWrapSelected);
-      final order = await _orders.placeOrder(
-        request: request,
-        totalManat: summary.totalManat,
-        itemCount: _cart.totalQuantity,
-      );
-      await _cart.clear();
-      if (!mounted) return;
-      await showTarzOrderSuccessDialog(context, order: order);
-      if (!mounted) return;
-      _toast('Sifariş #${order.displayId} qəbul edildi');
-    } catch (e) {
-      if (mounted) _toast('Sifariş rəsmiləşdirilmədi');
+      await _runEpointCheckout(request);
     } finally {
       if (mounted) setState(() => _checkoutBusy = false);
+    }
+  }
+
+  /// Tam Epoint ödəniş axını: init → WebView → verify → (status polling) → nəticə.
+  Future<void> _runEpointCheckout(TarzCheckoutRequest request) async {
+    final service = _orders.service;
+
+    // ─── 1. POST /checkout/epoint/init ───
+    final EpointInitResult initResult;
+    try {
+      initResult = await service.initEpointPayment(
+        deliveryType: request.deliveryMethod == TarzDeliveryMethod.delivery
+            ? 'DELIVERY'
+            : 'PICKUP',
+        shippingAddress: request.deliveryMethod == TarzDeliveryMethod.delivery
+            ? {
+                'street': request.address ?? '',
+                'city': request.city ?? '',
+                'zipCode': request.postalCode ?? '',
+              }
+            : null,
+        pickupBranch: request.deliveryMethod == TarzDeliveryMethod.pickup
+            ? request.pickupBranch
+            : null,
+        isGiftWrapped: request.isGiftWrapped,
+        clientOrigin: kEpointClientOrigin,
+      );
+    } catch (e) {
+      if (mounted) _toast('Ödəniş başladıla bilmədi');
+      // Init timeout-dan sonra retry etmə — backend artıq sifariş yaratmış ola bilər.
+      return;
+    }
+
+    // Pending orderId-ni saxla — kəsilmədən sonra verify üçün.
+    _pendingOrderId = initResult.orderId;
+
+    if (!mounted) return;
+
+    // ─── 2. WebView-da ödəniş URL-ini aç ───
+    final paymentReturned = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => EpointPaymentScreen(
+          paymentUrl: initResult.redirectUrl,
+          orderId: initResult.orderId,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (paymentReturned != true) {
+      // İstifadəçi WebView-ni bağladı / ləğv etdi.
+      // Səbəti təmizləmə, uğur göstərmə.
+      _toast('Ödəniş ləğv edildi');
+      return;
+    }
+
+    // ─── 3. POST /checkout/epoint/verify-order ───
+    await _verifyAndComplete(initResult.orderId, service);
+  }
+
+  /// Verify + status polling.
+  Future<void> _verifyAndComplete(
+    String orderId,
+    OrderService service,
+  ) async {
+    if (!mounted) return;
+
+    // Loading göstər.
+    setState(() => _checkoutBusy = true);
+
+    try {
+      // 3a. Verify
+      final verifyResult = await service.verifyEpointPayment(orderId: orderId);
+
+      if (verifyResult.success) {
+        // Backend təsdiqlədisə — uğur.
+        await _onPaymentConfirmed(orderId);
+        return;
+      }
+
+      // 3b. Verify nəticəsi müəyyən olmadıqda — GET /orders/:id ilə yoxla.
+      await _pollPaymentStatus(orderId, service);
+    } catch (e) {
+      // Şəbəkə xətası — pending status check fallback.
+      try {
+        await _pollPaymentStatus(orderId, service);
+      } catch (_) {
+        if (mounted) {
+          _toast('Ödəniş statusu yoxlanıla bilmədi. Sifarişlər səhifəsindən yoxlayın.');
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _checkoutBusy = false);
+    }
+  }
+
+  /// GET /orders/:id ilə bounded retries — paymentStatus-a bax.
+  Future<void> _pollPaymentStatus(
+    String orderId,
+    OrderService service,
+  ) async {
+    const maxRetries = 5;
+    const retryDelay = Duration(seconds: 3);
+
+    for (int i = 0; i < maxRetries; i++) {
+      if (!mounted) return;
+
+      final order = await service.fetchOrderById(orderId);
+      if (order == null) continue;
+
+      final status = order.paymentStatusEnum;
+
+      if (status == TarzPaymentStatus.success) {
+        await _onPaymentConfirmed(orderId);
+        return;
+      }
+
+      if (status == TarzPaymentStatus.failed) {
+        if (mounted) _toast('Ödəniş uğursuz oldu');
+        return;
+      }
+
+      // PENDING — bir az gözlə və yenidən yoxla.
+      if (i < maxRetries - 1) {
+        await Future<void>.delayed(retryDelay);
+      }
+    }
+
+    // maxRetries bitdi, hələ pending.
+    if (mounted) {
+      _toast('Ödəniş hələ təsdiqlənməyib. Sifarişlər səhifəsindən yoxlayın.');
+    }
+  }
+
+  /// Ödəniş təsdiqləndi — backend-dən yenilə (səbəti əl ilə təmizləmə).
+  Future<void> _onPaymentConfirmed(String orderId) async {
+    _pendingOrderId = null;
+
+    // Backend-dən sifariş məlumatını al.
+    TarzOrder? confirmedOrder;
+    try {
+      confirmedOrder = await _orders.service.fetchOrderById(orderId);
+    } catch (_) {
+      // Sifariş oxuma xətası ödəniş uğursuzluğu deyil.
+    }
+
+    // Backend-dən sifarişləri və səbəti yenilə.
+    // Refresh xətası ödəniş xətası kimi göstərilmir.
+    try {
+      await _orders.reload();
+    } catch (_) {}
+
+    try {
+      await _cart.reload();
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    if (confirmedOrder != null) {
+      await showTarzOrderSuccessDialog(context, order: confirmedOrder);
+    }
+
+    if (mounted) {
+      _toast('Ödəniş uğurla tamamlandı');
     }
   }
 

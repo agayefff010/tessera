@@ -4,7 +4,7 @@ import '../bootstrap/app_bootstrap.dart';
 import '../routes/app_routes.dart';
 import '../services/api_exception.dart';
 import 'data/home_repository.dart';
-import 'data/tarz_mock_catalog.dart';
+
 import 'models/plp_category_option.dart';
 import 'models/product_filter_state.dart';
 import 'models/tarz_home_banner.dart';
@@ -169,7 +169,6 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
       AppRoutes.productDetails,
       arguments: ProductDetailsArgs(
         product: product,
-        similarProducts: TarzMockCatalog.homeNewProductsGrid(),
       ),
     );
   }
@@ -353,7 +352,7 @@ class _TarzHomeScreenState extends State<TarzHomeScreen> {
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: GenderSegmentedTabs(
-                          labels: TarzMockCatalog.categories,
+                          labels: const ['Qadın', 'Kişi', 'Uşaq'],
                           selectedIndex: _homeGenderIndex,
                           onSelected: _onHomeGenderSelected,
                         ),
